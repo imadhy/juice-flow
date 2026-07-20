@@ -15,11 +15,16 @@ struct BatteryGauge: View {
 
     var body: some View {
         ZStack {
-            // Halo d'ambiance localisé (remplace tout dégradé global).
+            // Halo d'ambiance : dégradé radial statique — pas de blur(),
+            // dont la convolution se repayait à chaque frame d'animation.
             Circle()
-                .fill(color.opacity(0.16))
-                .blur(radius: size * 0.24)
-                .padding(-size * 0.03)
+                .fill(RadialGradient(
+                    colors: [color.opacity(0.30), color.opacity(0)],
+                    center: .center,
+                    startRadius: size * 0.28,
+                    endRadius: size * 0.72
+                ))
+                .padding(-size * 0.18)
 
             Circle()
                 .stroke(Color.primary.opacity(0.07),

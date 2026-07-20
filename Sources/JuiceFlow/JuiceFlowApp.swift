@@ -30,12 +30,13 @@ enum Main {
     /// Mode diagnostic : `JuiceFlow --pm` prend un échantillon powermetrics
     /// (nécessite la règle sudoers) et imprime le classement précis.
     private static func dumpPowerMetrics() {
-        print("Échantillon powermetrics via sudo -n…")
+        let interval = CommandLine.arguments.compactMap(Double.init).first ?? 1
+        print("Échantillon powermetrics sur \(interval) s via sudo -n…")
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
         proc.arguments = ["-n", "/usr/bin/powermetrics",
                           "--samplers", "tasks", "--show-process-energy", "--show-process-gpu",
-                          "-i", "1000", "-n", "1", "--format", "plist"]
+                          "-i", "\(Int(interval * 1000))", "-n", "1", "--format", "plist"]
         let stdout = Pipe()
         let stderr = Pipe()
         proc.standardOutput = stdout

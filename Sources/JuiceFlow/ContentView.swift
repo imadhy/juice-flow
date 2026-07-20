@@ -79,7 +79,10 @@ struct ContentView: View {
         }
         .frame(width: 880, height: 660, alignment: .top)
         .padding(20)
-        .animation(.spring(duration: 0.5), value: snap)
+        // Pas d'animation d'arbre global : le snapshot change toutes les 3 s
+        // (au centième de volt près) et forcerait tout le dashboard — halo,
+        // ombres — à re-rendre 60 fps pendant 0,5 s. Chaque composant anime
+        // localement ce qui le concerne.
     }
 
     // MARK: - Bandeau héros
@@ -89,10 +92,13 @@ struct ContentView: View {
     private func headerRow(_ snap: BatterySnapshot) -> some View {
         HStack(spacing: 18) {
             BatteryGauge(snapshot: snap, size: 140)
+                .animation(.spring(duration: 0.8), value: snap.percentage)
 
             VStack(alignment: .leading, spacing: 12) {
                 headline(snap)
+                    .animation(.default, value: snap)
                 PowerFlowCard(snapshot: snap)
+                    .animation(.default, value: snap)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -100,6 +106,7 @@ struct ContentView: View {
                 .padding(.vertical, 6)
 
             statsColumn(snap)
+                .animation(.default, value: snap)
                 .frame(width: 165)
         }
         .padding(18)
