@@ -3,6 +3,7 @@ import SwiftUI
 /// Dashboard principal : jauge héros, flux d'énergie, grille bento.
 struct ContentView: View {
     @Environment(BatteryService.self) private var battery
+    @Environment(ProcessService.self) private var processes
 
     var body: some View {
         Group {
@@ -57,6 +58,8 @@ struct ContentView: View {
                     subtitle: "limite de conception ~1000"
                 )
             }
+
+            appsSection
         }
         .padding(20)
         .background(alignment: .top) {
@@ -68,5 +71,47 @@ struct ContentView: View {
             .ignoresSafeArea()
         }
         .animation(.spring(duration: 0.5), value: snap)
+    }
+
+    private var appsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Impact énergétique")
+                    .font(.headline)
+                Text("estimation")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(.orange.opacity(0.14)))
+                Spacer()
+                Text("\(processes.trackedProcessCount) processus suivis")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .help("Score estimé à partir du CPU et des réveils système (même échelle que le Moniteur d'activité : ~100 ≈ un cœur saturé). Le mode powermetrics apportera la mesure exacte.")
+
+            if processes.apps.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Première mesure en cours…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 12)
+            } else {
+                let top = Array(processes.apps.prefix(7))
+                let maxImpact = top.first?.energyImpact ?? 1
+                VStack(spacing: 10) {
+                    ForEach(top) { app in
+                        AppEnergyRow(app: app, maxImpact: maxImpact)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .card()
+        .animation(.spring(duration: 0.5), value: processes.apps)
     }
 }

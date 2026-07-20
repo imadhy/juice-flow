@@ -7,8 +7,31 @@ enum Main {
     static func main() {
         if CommandLine.arguments.contains("--dump") {
             dumpSnapshot()
+        } else if CommandLine.arguments.contains("--top") {
+            dumpTopApps()
         } else {
             JuiceFlowApp.main()
+        }
+    }
+
+    /// Mode diagnostic : `JuiceFlow --top` échantillonne 3 s et imprime le
+    /// classement, à croiser avec `top -o cpu`.
+    private static func dumpTopApps() {
+        let interval = CommandLine.arguments.compactMap(Double.init).first ?? 3
+        let first = ProcessSampler.snapshot()
+        print("Échantillonnage sur \(interval) s (\(first.usage.count) processus)…")
+        Thread.sleep(forTimeInterval: interval)
+        let second = ProcessSampler.snapshot()
+
+        var iconCache: [pid_t: NSImage] = [:]
+        let apps = ProcessService.aggregate(from: first, to: second, iconCache: &iconCache)
+        print("  IMPACT   % CPU   RÉVEILS/S  PROC  APPLICATION")
+        for app in apps.prefix(12) {
+            let impact = String(format: "%7.1f", app.energyImpact)
+            let cpu = String(format: "%6.1f", app.cpuPercent)
+            let wakeups = String(format: "%9.1f", app.wakeupsPerSec)
+            let count = String(format: "%4d", app.processCount)
+            print("  \(impact)  \(cpu)  \(wakeups)  \(count)  \(app.name)")
         }
     }
 
@@ -38,11 +61,13 @@ enum Main {
 struct JuiceFlowApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var battery = BatteryService()
+    @State private var processes = ProcessService()
 
     var body: some Scene {
         WindowGroup("JuiceFlow") {
             ContentView()
                 .environment(battery)
+                .environment(processes)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
