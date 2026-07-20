@@ -47,18 +47,18 @@ struct AppDetailPanel: View {
             }
 
             HStack(alignment: .lastTextBaseline, spacing: 6) {
-                Text(valueText(app))
+                Text(app.displayValue)
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .contentTransition(.numericText())
-                    .foregroundStyle(valueColor(app))
+                    .foregroundStyle(app.displayColor)
                 Text(processes.source == .precision ? "en ce moment" : "pts d'impact")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Sparkline(values: app.history, color: valueColor(app))
+                Sparkline(values: app.history, color: app.displayColor)
                     .frame(height: 42)
                 Text("2 dernières minutes")
                     .font(.caption2)
@@ -228,20 +228,4 @@ struct AppDetailPanel: View {
         return String(format: "%.0f %% CPU", metric)
     }
 
-    private func valueText(_ app: AppPower) -> String {
-        if let watts = app.watts {
-            return watts < 1
-                ? String(format: "%.0f mW", watts * 1000)
-                : String(format: "%.1f W", watts)
-        }
-        return String(format: app.energyImpact < 10 ? "%.1f" : "%.0f", app.energyImpact)
-    }
-
-    private func valueColor(_ app: AppPower) -> Color {
-        if let watts = app.watts {
-            if watts < 0.5 { .green } else if watts < 2.5 { .orange } else { .red }
-        } else {
-            if app.energyImpact < 10 { .green } else if app.energyImpact < 60 { .orange } else { .red }
-        }
-    }
 }

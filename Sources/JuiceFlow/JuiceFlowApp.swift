@@ -114,13 +114,23 @@ struct JuiceFlowApp: App {
     @State private var processes = ProcessService()
 
     var body: some Scene {
-        WindowGroup("JuiceFlow") {
+        WindowGroup("JuiceFlow", id: "main") {
             ContentView()
                 .environment(battery)
                 .environment(processes)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+
+        MenuBarExtra {
+            MenuBarView()
+                .environment(battery)
+                .environment(processes)
+        } label: {
+            MenuBarLabel()
+                .environment(battery)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
 
@@ -133,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        // L'app vit dans la barre des menus : fermer la fenêtre ne quitte plus.
+        false
     }
 }

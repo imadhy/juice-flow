@@ -7,14 +7,7 @@ struct AppEnergyRow: View {
     var isSelected = false
     @State private var isHovering = false
 
-    private var color: Color {
-        if let watts = app.watts {
-            // Mode précision : seuils en watts réels.
-            if watts < 0.5 { .green } else if watts < 2.5 { .orange } else { .red }
-        } else {
-            if app.energyImpact < 10 { .green } else if app.energyImpact < 60 { .orange } else { .red }
-        }
-    }
+    private var color: Color { app.displayColor }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -44,7 +37,7 @@ struct AppEnergyRow: View {
 
             bar
 
-            Text(impactText)
+            Text(app.displayValue)
                 .font(.callout.weight(.semibold))
                 .monospacedDigit()
                 .contentTransition(.numericText())
@@ -115,14 +108,4 @@ struct AppEnergyRow: View {
             }
     }
 
-    private var impactText: String {
-        if let watts = app.watts {
-            return watts < 1
-                ? String(format: "%.0f mW", watts * 1000)
-                : String(format: "%.1f W", watts)
-        }
-        return app.energyImpact < 10
-            ? String(format: "%.1f", app.energyImpact)
-            : String(format: "%.0f", app.energyImpact)
-    }
 }

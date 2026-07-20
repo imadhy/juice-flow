@@ -103,6 +103,29 @@ enum TimeFormat {
     }
 }
 
+// MARK: - Affichage des apps du classement
+
+extension AppPower {
+    /// Valeur affichable : watts réels en précision, score en estimation.
+    var displayValue: String {
+        if let watts {
+            return watts < 1
+                ? String(format: "%.0f mW", watts * 1000)
+                : String(format: "%.1f W", watts)
+        }
+        return String(format: energyImpact < 10 ? "%.1f" : "%.0f", energyImpact)
+    }
+
+    var displayColor: Color {
+        if let watts {
+            if watts < 0.5 { return .green }
+            return watts < 2.5 ? .orange : .red
+        }
+        if energyImpact < 10 { return .green }
+        return energyImpact < 60 ? .orange : .red
+    }
+}
+
 // MARK: - Glyphes des processus sans icône
 
 /// Symbole + couleur pour les daemons et processus système : chaque famille

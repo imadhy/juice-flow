@@ -67,15 +67,18 @@ struct BatteryGauge: View {
                         .font(.system(size: size * 0.11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
-                HStack(spacing: 3) {
-                    if snapshot.state == .charging {
-                        Image(systemName: "bolt.fill")
-                            .foregroundStyle(.green)
+                // Illisible sous ~100 pt (version mini de la barre des menus).
+                if size >= 100 {
+                    HStack(spacing: 3) {
+                        if snapshot.state == .charging {
+                            Image(systemName: "bolt.fill")
+                                .foregroundStyle(.green)
+                        }
+                        Text(snapshot.stateShortLabel)
+                            .foregroundStyle(.secondary)
                     }
-                    Text(snapshot.stateShortLabel)
-                        .foregroundStyle(.secondary)
+                    .font(.system(size: size * 0.062, weight: .medium))
                 }
-                .font(.system(size: size * 0.062, weight: .medium))
             }
         }
     }
