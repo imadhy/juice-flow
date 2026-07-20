@@ -107,7 +107,8 @@ struct AppDetailPanel: View {
                         .font(.caption)
                     }
                     if app.processCount > app.topChildren.count {
-                        Text("et \(app.processCount - app.topChildren.count) autres…")
+                        let others = app.processCount - app.topChildren.count
+                        Text(others == 1 ? "et 1 autre processus" : "et \(others) autres processus")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
