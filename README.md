@@ -102,6 +102,10 @@ The binary doubles as a diagnostic tool:
 - [ ] Charge coach (80 % limit insights, undersized-charger detection)
 - [ ] Signed builds + `SMAppService` daemon (needs sponsoring an Apple Developer membership)
 
+## ⚡ Vibe coded
+
+This project was built end-to-end through **vibe coding**: an iterative pair-programming session between a human — product vision, design taste, testing on real hardware, every decision — and an AI agent ([Claude Code](https://claude.com/claude-code)), from an empty folder to this release: the dashboard, the `powermetrics` integration, the autonomy model, the history, the notifications… and this very README. Every feature was reviewed, measured and accepted by a human before landing — the commit history tells the whole story, dead ends included.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues: UI localization, new daemon glyphs, threshold tuning.
