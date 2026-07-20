@@ -53,14 +53,24 @@ struct AppEnergyRow: View {
         // Hauteur constante quelle que soit la présence du sous-titre :
         // évite que la liste change de taille à chaque rafraîchissement.
         .frame(height: 34)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isSelected
-                      ? Color.accentColor.opacity(0.16)
-                      : isHovering ? Color.primary.opacity(0.06) : .clear)
+                      ? Color.primary.opacity(0.08)
+                      : isHovering ? Color.primary.opacity(0.05) : .clear)
         )
-        .padding(.horizontal, -6)
+        .overlay(alignment: .leading) {
+            // Liseré accent : sélection neutre et lisible quel que soit le
+            // thème, sans teinter toute la ligne.
+            if isSelected {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Color.accentColor)
+                    .frame(width: 3)
+                    .padding(.vertical, 5)
+            }
+        }
+        .padding(.horizontal, -8)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
     }

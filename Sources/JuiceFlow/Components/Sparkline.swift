@@ -30,13 +30,17 @@ struct Sparkline: View {
     }
 
     private func normalizedPoints(in size: CGSize) -> [CGPoint] {
-        let maxValue = max(values.max() ?? 1, 0.0001)
+        // Échelle min → max : une conso stable et élevée dessine une ligne,
+        // pas une nappe pleine ; seules les variations remplissent la hauteur.
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? 1
+        let span = max(maxValue - minValue, maxValue * 0.08, 0.0001)
         let step = size.width / CGFloat(max(values.count - 1, 1))
         return values.enumerated().map { index, value in
             CGPoint(
                 x: step * CGFloat(index),
-                // 8 % de marge en haut pour que le pic ne touche pas le bord.
-                y: size.height * (1 - 0.92 * CGFloat(value / maxValue))
+                // marges 8 % en haut / en bas
+                y: size.height * (0.92 - 0.84 * CGFloat((value - minValue) / span))
             )
         }
     }

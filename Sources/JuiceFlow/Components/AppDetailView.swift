@@ -70,7 +70,13 @@ struct AppDetailPanel: View {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
                 GridRow {
                     Text("CPU").foregroundStyle(.secondary)
-                    Text(String(format: "%.1f %% d'un cœur", app.cpuPercent))
+                    Text(cpuText(app.cpuPercent))
+                }
+                if app.gpuPercent > 0.5 {
+                    GridRow {
+                        Text("GPU").foregroundStyle(.secondary)
+                        Text(cpuText(app.gpuPercent))
+                    }
                 }
                 GridRow {
                     Text("Processus").foregroundStyle(.secondary)
@@ -78,6 +84,31 @@ struct AppDetailPanel: View {
                 }
             }
             .font(.caption)
+
+            if !app.topChildren.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Répartition")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(app.topChildren, id: \.name) { child in
+                        HStack {
+                            Text(child.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer(minLength: 10)
+                            Text(childMetricText(child.metric))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.caption)
+                    }
+                    if app.processCount > app.topChildren.count {
+                        Text("et \(app.processCount - app.topChildren.count) autres…")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
 
             if app.isRunaway || app.isBackgroundActive {
                 VStack(alignment: .leading, spacing: 4) {
@@ -171,6 +202,23 @@ struct AppDetailPanel: View {
                         .foregroundStyle(.secondary)
                 }
         }
+    }
+
+    /// « 42 % d'un cœur » sous 100 %, « ≈ 2,8 cœurs » au-delà.
+    private func cpuText(_ percent: Double) -> String {
+        percent >= 100
+            ? String(format: "≈ %.1f cœurs", percent / 100)
+            : String(format: "%.0f %% d'un cœur", percent)
+    }
+
+    /// Métrique d'un sous-processus : mW/W en précision, % CPU en estimation.
+    private func childMetricText(_ metric: Double) -> String {
+        if processes.source == .precision {
+            return metric < 1000
+                ? String(format: "%.0f mW", metric)
+                : String(format: "%.1f W", metric / 1000)
+        }
+        return String(format: "%.0f %% CPU", metric)
     }
 
     private func valueText(_ app: AppPower) -> String {

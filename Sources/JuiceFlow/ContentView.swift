@@ -57,8 +57,10 @@ struct ContentView: View {
             VStack(spacing: 8) {
                 PowerFlowCard(snapshot: snap)
                 if let context = headerContext(snap) {
-                    Text(context)
-                        .font(.caption)
+                    // Branché, c'est LA réponse à « et si je débranche ? » :
+                    // elle mérite mieux qu'une légende.
+                    Label(context, systemImage: "hourglass")
+                        .font(.footnote.weight(.medium))
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
                 }

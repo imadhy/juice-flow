@@ -18,10 +18,20 @@ struct AppPower: Identifiable {
     var processCount: Int
     /// Dernières valeurs lissées (~2 min), pour sparkline et détection.
     var history: [Double] = []
+    /// Les sous-processus les plus gourmands du groupe (max 3).
+    /// `metric` : milliwatts en précision, % CPU en estimation.
+    var topChildren: [ProcessShare] = []
+    /// GPU en % d'utilisation équivalente — mode précision uniquement.
+    var gpuPercent: Double = 0
     /// 🔥 : consommation en forte hausse par rapport à sa propre moyenne.
     var isRunaway = false
     /// 🌙 : app graphique qui consomme alors qu'elle n'est pas au premier plan.
     var isBackgroundActive = false
+}
+
+struct ProcessShare: Equatable, Sendable {
+    var name: String
+    var metric: Double
 }
 
 extension AppPower: Equatable {
@@ -31,6 +41,7 @@ extension AppPower: Equatable {
             && lhs.processCount == rhs.processCount && lhs.history == rhs.history
             && lhs.isRunaway == rhs.isRunaway
             && lhs.isBackgroundActive == rhs.isBackgroundActive
+            && lhs.topChildren == rhs.topChildren && lhs.gpuPercent == rhs.gpuPercent
     }
 }
 
@@ -142,8 +153,10 @@ final class ProcessService {
         struct Group {
             var impact = 0.0
             var cpuMs = 0.0
+            var gpuMs = 0.0
             var count = 0
             var leaderName: String?
+            var members: [(name: String, impact: Double)] = []
         }
         var groups: [pid_t: Group] = [:]
 
@@ -152,8 +165,10 @@ final class ProcessService {
             var group = groups[rpid, default: Group()]
             group.impact += task.energyImpact
             group.cpuMs += task.cpuMsPerS
+            group.gpuMs += task.gpuMsPerS
             group.count += 1
             if rpid == task.pid { group.leaderName = task.name }
+            group.members.append((task.name, task.energyImpact))
             groups[rpid] = group
         }
 
@@ -165,6 +180,11 @@ final class ProcessService {
             if identity.icon == nil, identity.name.hasPrefix("PID "), let leader = group.leaderName {
                 identity.name = friendlyDaemonNames[leader] ?? leader
             }
+            let children = group.count > 1
+                ? group.members.sorted { $0.impact > $1.impact }.prefix(3).map {
+                    ProcessShare(name: $0.name, metric: $0.impact)
+                }
+                : []
             return AppPower(
                 id: rpid,
                 name: identity.name,
@@ -174,7 +194,9 @@ final class ProcessService {
                 watts: group.impact / 1000,
                 cpuPercent: group.cpuMs / 10,  // ms par seconde → % d'un cœur
                 wakeupsPerSec: 0,
-                processCount: group.count
+                processCount: group.count,
+                topChildren: Array(children),
+                gpuPercent: group.gpuMs / 10
             )
         }
         .sorted { $0.energyImpact > $1.energyImpact }
@@ -194,6 +216,7 @@ final class ProcessService {
             var cpuNS: UInt64 = 0
             var wakeups: UInt64 = 0
             var count = 0
+            var members: [(pid: pid_t, cpuNS: UInt64)] = []
         }
         var groups: [pid_t: Group] = [:]
 
@@ -206,6 +229,7 @@ final class ProcessService {
             group.wakeups += now.idleWakeups >= before.idleWakeups
                 ? now.idleWakeups - before.idleWakeups : 0
             group.count += 1
+            group.members.append((pid, now.cpuNS - before.cpuNS))
             groups[rpid] = group
         }
 
@@ -216,6 +240,12 @@ final class ProcessService {
             let impact = cpuPercent + 0.2 * wakeupsPerSec
             guard impact >= 0.1 else { return nil }  // bruit
             let identity = resolveIdentity(rpid, iconCache: &iconCache)
+            let children = group.count > 1
+                ? group.members.sorted { $0.cpuNS > $1.cpuNS }.prefix(3).map {
+                    ProcessShare(name: ProcessSampler.name(of: $0.pid) ?? "PID \($0.pid)",
+                                 metric: Double($0.cpuNS) / 1e9 / elapsed * 100)
+                }
+                : []
             return AppPower(
                 id: rpid,
                 name: identity.name,
@@ -224,7 +254,8 @@ final class ProcessService {
                 energyImpact: impact,
                 cpuPercent: cpuPercent,
                 wakeupsPerSec: wakeupsPerSec,
-                processCount: group.count
+                processCount: group.count,
+                topChildren: Array(children)
             )
         }
         .sorted { $0.energyImpact > $1.energyImpact }
