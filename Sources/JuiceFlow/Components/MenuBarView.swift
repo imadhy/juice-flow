@@ -68,6 +68,9 @@ struct MenuBarView: View {
 
             HStack {
                 Button("Ouvrir JuiceFlow") {
+                    // Retour au Dock avant d'ouvrir : l'app redevient une
+                    // application normale tant que la fenêtre est visible.
+                    NSApp.setActivationPolicy(.regular)
                     openWindow(id: "main")
                     NSApp.activate(ignoringOtherApps: true)
                 }

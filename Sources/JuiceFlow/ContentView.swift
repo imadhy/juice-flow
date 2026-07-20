@@ -22,9 +22,17 @@ struct ContentView: View {
                 .padding(40)
             }
         }
-        // Pilote la cadence de mesure : fenêtre fermée → mode économie.
-        .onAppear { processes.viewerAppeared() }
-        .onDisappear { processes.viewerDisappeared() }
+        // Pilote la cadence de mesure et la présence dans le Dock :
+        // fenêtre fermée → mode économie + app « accessoire » (barre des
+        // menus uniquement, plus d'icône Dock ni de point blanc).
+        .onAppear {
+            processes.viewerAppeared()
+            NSApp.setActivationPolicy(.regular)
+        }
+        .onDisappear {
+            processes.viewerDisappeared()
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 
     /// L'app affichée dans le panneau : la sélection, sinon la plus gourmande.

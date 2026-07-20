@@ -146,4 +146,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // L'app vit dans la barre des menus : fermer la fenêtre ne quitte plus.
         false
     }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        // Relance depuis le Finder/Spotlight alors que l'app est en mode
+        // accessoire : on redevient une app normale et SwiftUI rouvre la
+        // fenêtre principale.
+        NSApp.setActivationPolicy(.regular)
+        return true
+    }
 }
