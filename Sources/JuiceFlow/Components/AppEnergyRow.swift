@@ -35,6 +35,9 @@ struct AppEnergyRow: View {
                 .contentTransition(.numericText())
                 .frame(width: 48, alignment: .trailing)
         }
+        // Hauteur constante quelle que soit la présence du sous-titre :
+        // évite que la liste change de taille à chaque rafraîchissement.
+        .frame(height: 32)
     }
 
     @ViewBuilder

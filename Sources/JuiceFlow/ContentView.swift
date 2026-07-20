@@ -22,22 +22,23 @@ struct ContentView: View {
 
     private func dashboard(_ snap: BatterySnapshot) -> some View {
         HStack(alignment: .top, spacing: 14) {
-            // Colonne gauche : la batterie en un clin d'œil.
-            VStack(spacing: 16) {
+            // Colonne gauche : tout l'état batterie.
+            VStack(spacing: 14) {
                 BatteryGauge(snapshot: snap)
                     .padding(.top, 22)
                 PowerFlowCard(snapshot: snap)
+                bentoGrid(snap)
             }
             .frame(width: 300)
 
-            // Colonne droite : métriques détaillées et classement des apps.
-            VStack(spacing: 12) {
-                bentoGrid(snap)
-                appsSection
-            }
-            .frame(width: 340)
-            .padding(.top, 16)
+            // Colonne droite : le classement des apps, pleine hauteur.
+            appsSection
+                .frame(width: 340)
+                .padding(.top, 16)
         }
+        // Hauteur figée : le contenu vit à l'intérieur, la fenêtre ne
+        // « respire » plus à chaque rafraîchissement.
+        .frame(height: 600, alignment: .top)
         .padding(20)
         .background(alignment: .top) {
             LinearGradient(
@@ -111,7 +112,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 12)
             } else {
-                let top = Array(processes.apps.prefix(7))
+                let top = Array(processes.apps.prefix(11))
                 let maxImpact = top.first?.energyImpact ?? 1
                 VStack(spacing: 10) {
                     ForEach(top) { app in
@@ -121,6 +122,7 @@ struct ContentView: View {
             }
         }
         .padding(16)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
         .card()
         .animation(.spring(duration: 0.5), value: processes.apps)
     }
