@@ -15,11 +15,13 @@ struct SessionScore {
         var score = 100.0
         var factors: [String] = []
 
-        // Consommation globale : au-delà de 7 W de croisière, ça se paie.
-        if let drain = battery.smoothedDrainWatts, drain > 7 {
+        // Consommation globale : ne juge que sur batterie — branché, c'est le
+        // chargeur qui paie, une grosse charge de travail n'est pas une faute.
+        if battery.snapshot.state == .discharging,
+           let drain = battery.smoothedDrainWatts, drain > 7 {
             let penalty = min((drain - 7) * 4, 40)
             score -= penalty
-            factors.append("−\(Int(penalty)) · consommation élevée (\(String(format: "%.1f", drain)) W)")
+            factors.append("−\(Int(penalty)) · drain élevé (\(String(format: "%.1f", drain)) W)")
         }
 
         for app in processes.apps.filter(\.isRunaway).prefix(2) {

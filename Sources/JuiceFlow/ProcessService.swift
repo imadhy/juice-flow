@@ -220,9 +220,9 @@ final class ProcessService {
             if identity.icon == nil, identity.name.hasPrefix("PID "), let leader = group.leaderName {
                 identity.name = friendlyDaemonNames[leader] ?? leader
             }
-            let children = group.members.sorted { $0.impact > $1.impact }.prefix(3).map {
-                ProcessShare(name: $0.name, metric: $0.impact)
-            }
+            let children = group.members.sorted { $0.impact > $1.impact }.prefix(3)
+                .map { ProcessShare(name: $0.name, metric: $0.impact) }
+                .filter { $0.metric >= 1 }  // pas de lignes « 0 mW »
             return AppPower(
                 id: rpid,
                 name: identity.name,
@@ -278,10 +278,12 @@ final class ProcessService {
             let impact = cpuPercent + 0.2 * wakeupsPerSec
             guard impact >= 0.1 else { return nil }  // bruit
             let identity = resolveIdentity(rpid, iconCache: &iconCache)
-            let children = group.members.sorted { $0.cpuNS > $1.cpuNS }.prefix(3).map {
-                ProcessShare(name: ProcessSampler.name(of: $0.pid) ?? "PID \($0.pid)",
-                             metric: Double($0.cpuNS) / 1e9 / elapsed * 100)
-            }
+            let children = group.members.sorted { $0.cpuNS > $1.cpuNS }.prefix(3)
+                .map {
+                    ProcessShare(name: ProcessSampler.name(of: $0.pid) ?? "PID \($0.pid)",
+                                 metric: Double($0.cpuNS) / 1e9 / elapsed * 100)
+                }
+                .filter { $0.metric >= 0.1 }  // pas de lignes « 0 % »
             return AppPower(
                 id: rpid,
                 name: identity.name,
