@@ -50,9 +50,13 @@ struct ContentView: View {
 
     private func metrics(_ snap: BatterySnapshot) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
-            row("bolt.fill", "Puissance", wattsLabel(snap), valueColor: stateColor(snap))
-            row("gauge.with.needle", "Tension · Intensité",
-                String(format: "%.2f V · %+.2f A", snap.voltage, snap.amperage))
+            row("bolt.fill", "Batterie", wattsLabel(snap), valueColor: stateColor(snap))
+            if let system = snap.systemWatts {
+                row("laptopcomputer", "Conso. système", String(format: "%.1f W", system))
+            }
+            if snap.isExternalConnected, let adapter = snap.adapterWatts {
+                row("powerplug.fill", "Chargeur", String(format: "%.1f W", adapter))
+            }
             row("thermometer.medium", "Température",
                 String(format: "%.1f °C", snap.temperature))
             row("arrow.triangle.2.circlepath", "Cycles", "\(snap.cycleCount)")
@@ -104,7 +108,7 @@ struct ContentView: View {
 
     private func timeRemainingLabel(_ snap: BatterySnapshot) -> String {
         guard let minutes = snap.timeRemainingMinutes else {
-            return snap.state == .full ? "∞" : "estimation…"
+            return snap.state == .full ? "∞" : "calcul en cours…"
         }
         let suffix = snap.state == .charging ? " avant 100 %" : ""
         return "\(minutes / 60) h \(String(format: "%02d", minutes % 60))\(suffix)"

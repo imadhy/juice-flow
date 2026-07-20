@@ -28,6 +28,9 @@ enum Main {
         Température     \(String(format: "%.1f", s.temperature)) °C
         Secteur         \(s.isExternalConnected ? "branché" : "débranché")
         Temps restant   \(s.timeRemainingMinutes.map { "\($0) min" } ?? "—")
+        SMC batterie    \(s.watts) W (signé, convention charge > 0)
+        SMC système     \(s.systemWatts.map { String(format: "%.2f W", $0) } ?? "indisponible")
+        SMC chargeur    \(s.adapterWatts.map { String(format: "%.2f W", $0) } ?? "indisponible")
         """)
     }
 }

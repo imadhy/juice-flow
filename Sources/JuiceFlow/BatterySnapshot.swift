@@ -24,6 +24,9 @@ struct BatterySnapshot: Sendable {
     /// Minutes restantes (décharge) ou avant charge complète. `nil` si inconnu.
     var timeRemainingMinutes: Int?
     var isExternalConnected = false
+    /// Capteurs SMC temps réel (nil si indisponibles sur cette machine).
+    var systemWatts: Double?
+    var adapterWatts: Double?
 
     /// Santé de la batterie : capacité actuelle vs capacité d'origine.
     var healthPercent: Double {
@@ -89,6 +92,16 @@ enum BatteryReader {
         let timeKey = snap.state == .charging ? "AvgTimeToFull" : "AvgTimeToEmpty"
         if let minutes = intValue(props[timeKey]), minutes > 0, minutes < 65535 {
             snap.timeRemainingMinutes = minutes
+        }
+
+        // Le SMC fournit la puissance en temps réel, alors que la jauge du
+        // registre ne se rafraîchit que toutes les ~20-60 s : il est prioritaire.
+        if let sensors = SMCPowerReader.shared?.read() {
+            if let batteryWatts = sensors.batteryWatts {
+                snap.watts = batteryWatts
+            }
+            snap.systemWatts = sensors.systemWatts
+            snap.adapterWatts = sensors.adapterWatts
         }
 
         return snap
