@@ -75,8 +75,10 @@ struct HistoryView: View {
                         x: .value("Heure", point.timestamp),
                         y: .value("Niveau", point.percentage)
                     )
+                    // Un souffle, pas une dalle : à 100 % constant, une aire
+                    // dense remplirait tout le graphe.
                     .foregroundStyle(
-                        LinearGradient(colors: [.green.opacity(0.25), .green.opacity(0.02)],
+                        LinearGradient(colors: [.green.opacity(0.10), .clear],
                                        startPoint: .top, endPoint: .bottom)
                     )
                     LineMark(
@@ -87,6 +89,9 @@ struct HistoryView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1.8))
                 }
                 .chartYScale(domain: 0...100)
+                // Axe honnête : les vraies dernières 24 h, même si les
+                // données n'en couvrent qu'un segment (il grandira).
+                .chartXScale(domain: Date.now.addingTimeInterval(-24 * 3600)...Date.now)
                 .chartYAxis {
                     AxisMarks(values: [0, 25, 50, 75, 100])
                 }
