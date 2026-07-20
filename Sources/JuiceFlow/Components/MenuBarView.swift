@@ -80,6 +80,10 @@ struct MenuBarView: View {
         .padding(14)
         .frame(width: 300)
         .animation(.default, value: processes.apps)
+        // Le popover compte comme un spectateur : cadence rapide tant
+        // qu'il est ouvert, mode économie sinon.
+        .onAppear { processes.viewerAppeared() }
+        .onDisappear { processes.viewerDisappeared() }
     }
 
     private func row(_ app: AppPower) -> some View {

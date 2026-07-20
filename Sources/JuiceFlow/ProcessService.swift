@@ -72,11 +72,39 @@ final class ProcessService {
     @ObservationIgnored private var smoothedImpacts: [pid_t: Double] = [:]
     @ObservationIgnored private var histories: [pid_t: [Double]] = [:]
 
+    @ObservationIgnored private var viewerCount = 0
+
     init() {
         previous = ProcessSampler.snapshot()
+        restartPolling(every: .seconds(3))
+    }
+
+    // MARK: - Cadence pilotée par la visibilité
+
+    /// Appelé par chaque vue qui consomme le classement (dashboard, popover).
+    /// Personne ne regarde → powermetrics en pause et échantillonnage ralenti
+    /// à 30 s : l'historique des badges reste vivant pour presque rien.
+    func viewerAppeared() {
+        viewerCount += 1
+        guard viewerCount == 1 else { return }
+        restartPolling(every: .seconds(3))
+        Task { await powerMetrics.resumeIfAuthorized() }
+        refresh()
+    }
+
+    func viewerDisappeared() {
+        viewerCount = max(0, viewerCount - 1)
+        guard viewerCount == 0 else { return }
+        powerMetrics.pause()
+        restartPolling(every: .seconds(30))
+    }
+
+    private func restartPolling(every interval: Duration) {
+        pollTask?.cancel()
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3))
+                // La tolérance laisse macOS regrouper nos réveils (App Nap).
+                try? await Task.sleep(for: interval, tolerance: .seconds(1))
                 self?.refresh()
             }
         }
@@ -87,8 +115,9 @@ final class ProcessService {
             publish(Self.fromPowerMetrics(powerMetrics.tasks, iconCache: &iconCache),
                     processCount: powerMetrics.tasks.count,
                     source: .precision)
-            // L'échantillonnage estimation reste chaud pour un repli sans trou.
-            previous = ProcessSampler.snapshot()
+            // Pas de re-échantillonnage libproc ici : les compteurs CPU sont
+            // cumulatifs, le snapshot `previous` restera une base valide au
+            // moment du repli (moyenne sur la période écoulée).
             return
         }
 

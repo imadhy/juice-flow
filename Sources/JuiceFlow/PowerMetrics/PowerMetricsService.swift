@@ -20,6 +20,7 @@ final class PowerMetricsService {
         case probing        // vérification de l'autorisation en cours
         case unavailable    // pas de règle sudoers : mode estimation
         case running
+        case paused         // personne ne regarde : flux arrêté volontairement
         case failed(String)
     }
 
@@ -121,17 +122,39 @@ final class PowerMetricsService {
         buffer.removeAll()
     }
 
+    /// Pause volontaire (aucune vue visible) : on garde le souvenir de
+    /// l'autorisation pour un redémarrage sans re-sonder sudo.
+    func pause() {
+        guard process != nil else { return }
+        stop()
+        state = .paused
+    }
+
+    func resumeIfAuthorized() async {
+        guard process == nil else { return }
+        if state == .paused {
+            start()
+        } else {
+            await probeAndStart()
+        }
+    }
+
     private func ingest(_ data: Data) {
         buffer.append(data)
         // Garde-fou si le format ne contient jamais de séparateur NUL.
         if buffer.count > 20_000_000 { buffer.removeAll() }
 
-        for document in PowerMetricsParser.splitStream(buffer: &buffer) {
-            let parsed = PowerMetricsParser.tasks(from: document)
-            if !parsed.isEmpty {
-                tasks = parsed
-                lastSample = .now
-                if state != .running { state = .running }
+        // Seul le document le plus récent compte, et son parsing (~300 Ko de
+        // plist) n'a rien à faire sur le thread principal.
+        guard let latest = PowerMetricsParser.splitStream(buffer: &buffer).last else { return }
+        Task.detached(priority: .utility) { [weak self] in
+            let parsed = PowerMetricsParser.tasks(from: latest)
+            guard !parsed.isEmpty else { return }
+            await MainActor.run {
+                guard let self else { return }
+                self.tasks = parsed
+                self.lastSample = .now
+                if self.state != .running { self.state = .running }
             }
         }
     }

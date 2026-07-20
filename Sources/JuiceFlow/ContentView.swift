@@ -22,6 +22,9 @@ struct ContentView: View {
                 .padding(40)
             }
         }
+        // Pilote la cadence de mesure : fenêtre fermée → mode économie.
+        .onAppear { processes.viewerAppeared() }
+        .onDisappear { processes.viewerDisappeared() }
     }
 
     /// L'app affichée dans le panneau : la sélection, sinon la plus gourmande.

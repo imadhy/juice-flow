@@ -75,7 +75,8 @@ final class BatteryService {
     private func startPolling() {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(3))
+                // Tolérance : laisse macOS coalescer les réveils (App Nap).
+                try? await Task.sleep(for: .seconds(3), tolerance: .seconds(1))
                 self?.refresh()
             }
         }
