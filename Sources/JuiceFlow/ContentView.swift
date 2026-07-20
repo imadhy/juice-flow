@@ -11,6 +11,8 @@ struct ContentView: View {
     @State private var showPrecisionSetup = false
     @State private var selectedAppID: pid_t?
     @State private var tab: Tab = .live
+    @AppStorage("hasOnboarded") private var hasOnboarded = false
+    @State private var showOnboarding = false
 
     var body: some View {
         Group {
@@ -31,10 +33,17 @@ struct ContentView: View {
         .onAppear {
             processes.viewerAppeared()
             NSApp.setActivationPolicy(.regular)
+            if !hasOnboarded { showOnboarding = true }
         }
         .onDisappear {
             processes.viewerDisappeared()
             NSApp.setActivationPolicy(.accessory)
+        }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingView {
+                hasOnboarded = true
+                showOnboarding = false
+            }
         }
     }
 

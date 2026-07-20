@@ -1,6 +1,38 @@
 import AppKit
 import UserNotifications
 
+/// Sensibilité des alertes, réglable dans les Réglages.
+enum AlertSensitivity: String, CaseIterable, Identifiable {
+    case low, normal, high
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .low: "Tolérante"
+        case .normal: "Normale"
+        case .high: "Sensible"
+        }
+    }
+
+    var runawayWatts: Double {
+        switch self { case .low: 2.5; case .normal: 1.5; case .high: 1.0 }
+    }
+    var backgroundWatts: Double {
+        switch self { case .low: 3.0; case .normal: 2.0; case .high: 1.5 }
+    }
+    var runawayImpact: Double {
+        switch self { case .low: 160; case .normal: 100; case .high: 70 }
+    }
+    var backgroundImpact: Double {
+        switch self { case .low: 220; case .normal: 150; case .high: 100 }
+    }
+    /// Nombre de constats consécutifs (espacés de 15 s) avant notification.
+    var requiredStreak: Int {
+        switch self { case .low: 4; case .normal: 3; case .high: 2 }
+    }
+}
+
 /// Le garde du corps : surveille le classement et notifie quand une app
 /// s'emballe ou pèse lourd en arrière-plan — uniquement sur batterie, là où
 /// ça coûte des minutes d'autonomie.
@@ -70,24 +102,36 @@ final class AlertService {
 
     // MARK: - Surveillance
 
+    private var alertsEnabled: Bool {
+        UserDefaults.standard.object(forKey: "alertsEnabled") as? Bool ?? true
+    }
+
+    private var sensitivity: AlertSensitivity {
+        AlertSensitivity(rawValue: UserDefaults.standard.string(forKey: "alertSensitivity") ?? "")
+            ?? .normal
+    }
+
     private func evaluate() {
         // Branché, une app gourmande ne coûte pas d'autonomie : silence.
-        guard battery.snapshot.state == .discharging else {
+        guard alertsEnabled, battery.snapshot.state == .discharging else {
             streaks.removeAll()
             return
         }
 
+        let sensitivity = sensitivity
         var stillHeavy = Set<String>()
         for app in processes.apps.prefix(12) {
             let heavyRunaway = app.isRunaway
-                && (app.watts.map { $0 >= 1.5 } ?? (app.energyImpact >= 100))
+                && (app.watts.map { $0 >= sensitivity.runawayWatts }
+                    ?? (app.energyImpact >= sensitivity.runawayImpact))
             let heavyBackground = app.isBackgroundActive
-                && (app.watts.map { $0 >= 2 } ?? (app.energyImpact >= 150))
+                && (app.watts.map { $0 >= sensitivity.backgroundWatts }
+                    ?? (app.energyImpact >= sensitivity.backgroundImpact))
             guard heavyRunaway || heavyBackground else { continue }
 
             stillHeavy.insert(app.name)
             streaks[app.name, default: 0] += 1
-            guard streaks[app.name, default: 0] >= 3,
+            guard streaks[app.name, default: 0] >= sensitivity.requiredStreak,
                   cooldowns[app.name].map({ $0 < .now }) ?? true else { continue }
 
             notify(app, runaway: heavyRunaway)

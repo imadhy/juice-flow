@@ -91,6 +91,15 @@ final class PowerMetricsService {
         return state == .running
     }
 
+    /// Supprime la règle sudoers (dialogue admin) et repasse en estimation.
+    func removeAuthorization() async {
+        let script = "do shell script \"/bin/rm -f /etc/sudoers.d/juiceflow-powermetrics\" with administrator privileges"
+        guard let result = try? await Self.run("/usr/bin/osascript", ["-e", script]),
+              result.status == 0 else { return }
+        stop()
+        state = .unavailable
+    }
+
     // MARK: - Flux powermetrics
 
     private func start() {

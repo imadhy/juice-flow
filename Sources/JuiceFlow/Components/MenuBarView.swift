@@ -29,6 +29,7 @@ struct MenuBarView: View {
     @Environment(BatteryService.self) private var battery
     @Environment(ProcessService.self) private var processes
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         let snap = battery.snapshot
@@ -75,6 +76,13 @@ struct MenuBarView: View {
                     NSApp.activate(ignoringOtherApps: true)
                 }
                 Spacer()
+                Button {
+                    openSettings()
+                    NSApp.activate(ignoringOtherApps: true)
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .help("Réglages")
                 Button("Quitter") { NSApp.terminate(nil) }
                     .keyboardShortcut("q")
             }

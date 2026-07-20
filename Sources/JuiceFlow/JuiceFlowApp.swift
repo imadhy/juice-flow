@@ -143,6 +143,11 @@ struct JuiceFlowApp: App {
                 .environment(battery)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+                .environment(processes)
+        }
     }
 }
 
