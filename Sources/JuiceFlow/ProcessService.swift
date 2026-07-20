@@ -32,6 +32,7 @@ final class ProcessService {
     @ObservationIgnored private var previous: ProcessSampler.Snapshot?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var iconCache: [pid_t: NSImage] = [:]
+    @ObservationIgnored private var smoothedImpacts: [pid_t: Double] = [:]
 
     init() {
         previous = ProcessSampler.snapshot()
@@ -46,7 +47,19 @@ final class ProcessService {
     private func refresh() {
         let current = ProcessSampler.snapshot()
         if let previous {
-            apps = Self.aggregate(from: previous, to: current, iconCache: &iconCache)
+            var list = Self.aggregate(from: previous, to: current, iconCache: &iconCache)
+            // Moyenne glissante exponentielle : les scores glissent au lieu de
+            // sauter, le classement arrête de frétiller à chaque échantillon.
+            for index in list.indices {
+                let id = list[index].id
+                if let prior = smoothedImpacts[id] {
+                    list[index].energyImpact = prior * 0.55 + list[index].energyImpact * 0.45
+                }
+                smoothedImpacts[id] = list[index].energyImpact
+            }
+            let alive = Set(list.map(\.id))
+            smoothedImpacts = smoothedImpacts.filter { alive.contains($0.key) }
+            apps = list.sorted { $0.energyImpact > $1.energyImpact }
             trackedProcessCount = current.usage.count
         }
         previous = current

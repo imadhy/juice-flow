@@ -37,7 +37,7 @@ struct AppEnergyRow: View {
         }
         // Hauteur constante quelle que soit la présence du sous-titre :
         // évite que la liste change de taille à chaque rafraîchissement.
-        .frame(height: 32)
+        .frame(height: 34)
     }
 
     @ViewBuilder

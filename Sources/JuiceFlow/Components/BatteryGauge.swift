@@ -10,6 +10,13 @@ struct BatteryGauge: View {
 
     var body: some View {
         ZStack {
+            // Halo d'ambiance localisé derrière la jauge (remplace l'ancien
+            // dégradé global qui teintait toute la fenêtre).
+            Circle()
+                .fill(color.opacity(0.16))
+                .blur(radius: 45)
+                .padding(-6)
+
             Circle()
                 .stroke(Color.primary.opacity(0.07), style: StrokeStyle(lineWidth: 16, lineCap: .round))
 

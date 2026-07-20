@@ -21,7 +21,7 @@ struct PowerFlowCard: View {
             )
 
             arrow(
-                "chevron.compact.right",
+                "arrow.forward",
                 active: snapshot.isExternalConnected && (snapshot.adapterWatts ?? 0) > 0.5,
                 color: .blue
             )
@@ -35,7 +35,7 @@ struct PowerFlowCard: View {
             )
 
             arrow(
-                snapshot.watts < -0.5 ? "chevron.compact.left" : "chevron.compact.right",
+                snapshot.watts < -0.5 ? "arrow.backward" : "arrow.forward",
                 active: abs(snapshot.watts) > 0.5,
                 color: snapshot.wattsColor
             )
@@ -74,7 +74,7 @@ struct PowerFlowCard: View {
 
     private func arrow(_ symbol: String, active: Bool, color: Color) -> some View {
         Image(systemName: active ? symbol : "minus")
-            .font(.title3.weight(.bold))
+            .font(.footnote.weight(.bold))
             .foregroundStyle(active ? color : Color.primary.opacity(0.15))
             .frame(width: 18)
     }

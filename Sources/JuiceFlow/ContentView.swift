@@ -40,14 +40,6 @@ struct ContentView: View {
         // « respire » plus à chaque rafraîchissement.
         .frame(height: 600, alignment: .top)
         .padding(20)
-        .background(alignment: .top) {
-            LinearGradient(
-                colors: [snap.levelColor.opacity(0.16), .clear],
-                startPoint: .top, endPoint: .bottom
-            )
-            .frame(height: 280)
-            .ignoresSafeArea()
-        }
         .animation(.spring(duration: 0.5), value: snap)
     }
 
@@ -78,7 +70,7 @@ struct ContentView: View {
                 icon: "arrow.triangle.2.circlepath", iconColor: .blue,
                 title: "Cycles",
                 value: "\(snap.cycleCount)",
-                subtitle: "limite de conception ~1000"
+                subtitle: "max théorique ~1000"
             )
         }
     }
@@ -112,7 +104,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 12)
             } else {
-                let top = Array(processes.apps.prefix(11))
+                let top = Array(processes.apps.prefix(12))
                 let maxImpact = top.first?.energyImpact ?? 1
                 VStack(spacing: 10) {
                     ForEach(top) { app in

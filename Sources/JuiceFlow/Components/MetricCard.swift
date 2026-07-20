@@ -28,10 +28,13 @@ struct MetricCard: View {
                 Text(subtitle)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
+        // Hauteur uniforme : les cartes du bento restent alignées entre elles.
+        .frame(minHeight: 88, alignment: .topLeading)
         .card()
     }
 }
