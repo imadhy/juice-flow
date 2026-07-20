@@ -146,6 +146,8 @@ struct AppDetailPanel: View {
     }
 
     /// Le bloc signature : ce que cette app coûte en temps de batterie.
+    /// Calculé sur les moyennes glissantes (drain 2 min, conso soutenue de
+    /// l'app) : l'estimation ne saute pas au gré des pics instantanés.
     @ViewBuilder
     private func autonomyCost(_ app: AppPower) -> some View {
         let snap = battery.snapshot
@@ -154,9 +156,9 @@ struct AppDetailPanel: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            if let watts = app.watts,
-               let gain = snap.autonomyGainMinutes(freeingWatts: watts),
-               let now = snap.estimatedAutonomyHours {
+            if let watts = app.sustainedWatts,
+               let gain = battery.autonomyGainMinutes(freeingWatts: watts),
+               let now = battery.estimatedAutonomyHours {
                 HStack(alignment: .lastTextBaseline, spacing: 6) {
                     Text(TimeFormat.gain(gain))
                         .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -194,12 +196,13 @@ struct AppDetailPanel: View {
         if let icon = app.icon {
             Image(nsImage: icon).resizable().scaledToFit()
         } else {
+            let glyph = DaemonGlyph.forApp(app)
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.quinary)
+                .fill(glyph.color.opacity(0.16))
                 .overlay {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 17))
-                        .foregroundStyle(.secondary)
+                    Image(systemName: glyph.symbol)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(glyph.color)
                 }
         }
     }

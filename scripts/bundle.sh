@@ -9,9 +9,12 @@ swift build -c "$CONFIG"
 
 APP="build/JuiceFlow.app"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp ".build/$CONFIG/JuiceFlow" "$APP/Contents/MacOS/JuiceFlow"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+if [[ -f Resources/AppIcon.icns ]]; then
+  cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+fi
 
 # Signature ad-hoc : suffisante pour un usage local, pas de compte développeur requis.
 codesign --force --sign - "$APP"

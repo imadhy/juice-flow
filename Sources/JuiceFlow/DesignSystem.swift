@@ -88,7 +88,11 @@ enum TimeFormat {
     static func hours(_ hours: Double) -> String {
         guard hours.isFinite, hours > 0 else { return "—" }
         guard hours < 24 else { return "> 24 h" }
-        let minutes = Int(hours * 60)
+        var minutes = Int(hours * 60)
+        // Arrondi aux 5 min au-delà d'une demi-heure : une estimation n'a pas
+        // à afficher une fausse précision qui bouge sans arrêt.
+        if minutes > 30 { minutes = (minutes + 2) / 5 * 5 }
+        guard minutes >= 60 else { return "\(minutes) min" }
         return "\(minutes / 60) h \(String(format: "%02d", minutes % 60))"
     }
 
@@ -96,6 +100,36 @@ enum TimeFormat {
         let rounded = Int(minutes.rounded())
         guard rounded >= 60 else { return "+\(max(rounded, 1)) min" }
         return "+\(rounded / 60) h \(String(format: "%02d", rounded % 60))"
+    }
+}
+
+// MARK: - Glyphes des processus sans icône
+
+/// Symbole + couleur pour les daemons et processus système : chaque famille
+/// de service a son identité au lieu d'un engrenage générique répété.
+enum DaemonGlyph {
+    static func forApp(_ app: AppPower) -> (symbol: String, color: Color) {
+        let name = app.name
+        if name.contains("WindowServer") || name.contains("Affichage") { return ("display", .blue) }
+        if name.contains("Noyau") || name == "kernel_task" { return ("cpu", .purple) }
+        if name.localizedCaseInsensitiveContains("spotlight") || name.hasPrefix("mds") {
+            return ("magnifyingglass", .indigo)
+        }
+        if name.contains("iCloud") || name == "bird" { return ("icloud.fill", .cyan) }
+        if name.contains("Time Machine") { return ("clock.arrow.circlepath", .teal) }
+        if name.contains("Audio") || name == "coreaudiod" { return ("speaker.wave.2.fill", .pink) }
+        if name.contains("Sécurité") || ["trustd", "tccd", "syspolicyd"].contains(name) {
+            return ("lock.shield.fill", .green)
+        }
+        if name.contains("Bluetooth") { return ("dot.radiowaves.left.and.right", .blue) }
+        if name.contains("Wi-Fi") || name == "airportd" { return ("wifi", .blue) }
+        if name.contains("Analyse") || name.contains("Photos") { return ("photo.on.rectangle", .orange) }
+        if name.contains("Journaux") || name == "logd" { return ("doc.text", .gray) }
+        if name.contains("Virtual") || ["limactl", "colima", "docker", "qemu"]
+            .contains(where: { name.localizedCaseInsensitiveContains($0) }) {
+            return ("shippingbox.fill", .brown)
+        }
+        return ("gearshape.fill", .gray)
     }
 }
 

@@ -6,8 +6,21 @@ struct StatChip: View {
     let color: Color
     let value: String
     let label: String
+    /// false : rangée nue, pour intégration dans une carte existante.
+    var showsBackground = true
 
     var body: some View {
+        if showsBackground {
+            content
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .card()
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         HStack(spacing: 9) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .semibold))
@@ -30,9 +43,6 @@ struct StatChip: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
     }
 }

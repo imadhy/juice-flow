@@ -48,60 +48,94 @@ struct ContentView: View {
 
     // MARK: - Bandeau héros
 
+    /// Une seule carte unifiée : jauge (niveau), titre temporel (la réponse
+    /// à « combien de temps ? »), flux d'énergie, stats derrière un filet.
     private func headerRow(_ snap: BatterySnapshot) -> some View {
-        HStack(spacing: 14) {
-            BatteryGauge(snapshot: snap, size: 150, heroText: gaugeHero(snap))
-                .padding(.top, 10)
-                .frame(width: 170)
+        HStack(spacing: 18) {
+            BatteryGauge(snapshot: snap, size: 140)
 
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 12) {
+                headline(snap)
                 PowerFlowCard(snapshot: snap)
-                if let context = headerContext(snap) {
-                    // Branché, c'est LA réponse à « et si je débranche ? » :
-                    // elle mérite mieux qu'une légende.
-                    Label(context, systemImage: "hourglass")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(spacing: 8) {
+            Divider()
+                .padding(.vertical, 6)
+
+            VStack(alignment: .leading, spacing: 14) {
                 StatChip(icon: "heart.fill", color: .pink,
                          value: String(format: "%.0f %%", snap.healthPercent),
-                         label: "Santé · \(snap.nominalCapacity) mAh")
+                         label: "Santé · \(snap.nominalCapacity) mAh",
+                         showsBackground: false)
                 StatChip(icon: "thermometer.medium", color: .orange,
                          value: String(format: "%.1f °C", snap.temperature),
-                         label: snap.temperature < 40 ? "Température normale" : "Température élevée")
+                         label: snap.temperature < 40 ? "Température normale" : "Température élevée",
+                         showsBackground: false)
                 StatChip(icon: "arrow.triangle.2.circlepath", color: .blue,
                          value: "\(snap.cycleCount)",
-                         label: "Cycles · max ~1000")
+                         label: "Cycles · max ~1000",
+                         showsBackground: false)
             }
-            .frame(width: 190)
+            .frame(width: 165)
         }
-        .frame(height: 168)
+        .padding(18)
+        .card()
+        .frame(height: 196)
     }
 
-    /// Sur batterie, le héros de la jauge est le temps restant — la vraie
-    /// réponse à « où j'en suis ? ». Sinon le pourcentage reprend la main.
-    private func gaugeHero(_ snap: BatterySnapshot) -> String? {
-        guard snap.state == .discharging,
-              let autonomy = snap.estimatedAutonomyHours else { return nil }
-        return TimeFormat.hours(autonomy)
+    /// Le gros titre contextuel du bandeau : toujours une réponse en temps.
+    private func headline(_ snap: BatterySnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .lastTextBaseline, spacing: 7) {
+                Text(headlineValue(snap))
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text(headlineLabel(snap))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Text(headlineSubtitle(snap))
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .contentTransition(.numericText())
+        }
     }
 
-    private func headerContext(_ snap: BatterySnapshot) -> String? {
+    private func headlineValue(_ snap: BatterySnapshot) -> String {
         switch snap.state {
-        case .charging:
-            guard let minutes = snap.timeRemainingMinutes else { return "calcul du temps de charge…" }
-            return "chargée dans \(TimeFormat.hours(Double(minutes) / 60))"
-        case .full, .pluggedNotCharging:
-            guard let autonomy = snap.estimatedAutonomyHours else { return nil }
-            return "≈ \(TimeFormat.hours(autonomy)) d'autonomie si débranché maintenant"
         case .discharging:
-            guard let minutes = snap.timeRemainingMinutes else { return nil }
-            return "estimation macOS : \(TimeFormat.hours(Double(minutes) / 60))"
+            return battery.estimatedAutonomyHours.map { TimeFormat.hours($0) } ?? "…"
+        case .charging:
+            return snap.timeRemainingMinutes.map { TimeFormat.hours(Double($0) / 60) } ?? "En charge"
+        case .full, .pluggedNotCharging:
+            return battery.estimatedAutonomyHours.map { "≈ \(TimeFormat.hours($0))" } ?? "Branché"
+        }
+    }
+
+    private func headlineLabel(_ snap: BatterySnapshot) -> String {
+        switch snap.state {
+        case .discharging: "d'autonomie restante"
+        case .charging: snap.timeRemainingMinutes != nil ? "avant charge complète" : ""
+        case .full, .pluggedNotCharging:
+            battery.estimatedAutonomyHours != nil ? "d'autonomie si débranché" : ""
+        }
+    }
+
+    private func headlineSubtitle(_ snap: BatterySnapshot) -> String {
+        let drain = battery.smoothedDrainWatts.map { String(format: "%.1f W", $0) } ?? "…"
+        switch snap.state {
+        case .discharging:
+            return "au rythme moyen des 2 dernières minutes · \(drain)"
+        case .charging:
+            let autonomy = battery.estimatedAutonomyHours
+                .map { "≈ \(TimeFormat.hours($0)) d'autonomie si débranché" } ?? "calcul en cours"
+            return "\(autonomy) · conso moyenne \(drain)"
+        case .full:
+            return "batterie pleine · consommation moyenne \(drain)"
+        case .pluggedNotCharging:
+            return "charge en pause · consommation moyenne \(drain)"
         }
     }
 

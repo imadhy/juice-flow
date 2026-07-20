@@ -93,9 +93,14 @@ struct AppEnergyRow: View {
                 .resizable()
                 .scaledToFit()
         } else {
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 15))
-                .foregroundStyle(.secondary)
+            let glyph = DaemonGlyph.forApp(app)
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(glyph.color.opacity(0.16))
+                .overlay {
+                    Image(systemName: glyph.symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(glyph.color)
+                }
         }
     }
 

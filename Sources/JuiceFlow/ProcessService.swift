@@ -27,6 +27,14 @@ struct AppPower: Identifiable {
     var isRunaway = false
     /// 🌙 : app graphique qui consomme alors qu'elle n'est pas au premier plan.
     var isBackgroundActive = false
+
+    /// Puissance soutenue (moyenne ~1 min de l'historique lissé) : la valeur
+    /// à utiliser pour les projections d'autonomie, pas l'instantanée.
+    var sustainedWatts: Double? {
+        guard watts != nil, !history.isEmpty else { return watts }
+        let window = history.suffix(20)
+        return window.reduce(0, +) / Double(window.count) / 1000
+    }
 }
 
 struct ProcessShare: Equatable, Sendable {
