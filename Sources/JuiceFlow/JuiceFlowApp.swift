@@ -110,14 +110,24 @@ enum Main {
 
 struct JuiceFlowApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var battery = BatteryService()
-    @State private var processes = ProcessService()
+    @State private var battery: BatteryService
+    @State private var processes: ProcessService
+    @State private var history: HistoryService
+
+    init() {
+        let battery = BatteryService()
+        let processes = ProcessService()
+        _battery = State(initialValue: battery)
+        _processes = State(initialValue: processes)
+        _history = State(initialValue: HistoryService(battery: battery, processes: processes))
+    }
 
     var body: some Scene {
         WindowGroup("JuiceFlow", id: "main") {
             ContentView()
                 .environment(battery)
                 .environment(processes)
+                .environment(history)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)

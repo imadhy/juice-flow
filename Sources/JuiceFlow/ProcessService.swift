@@ -88,6 +88,7 @@ final class ProcessService {
         viewerCount += 1
         guard viewerCount == 1 else { return }
         restartPolling(every: .seconds(3))
+        powerMetrics.setCadence(seconds: 3)
         Task { await powerMetrics.resumeIfAuthorized() }
         refresh()
     }
@@ -95,7 +96,9 @@ final class ProcessService {
     func viewerDisappeared() {
         viewerCount = max(0, viewerCount - 1)
         guard viewerCount == 0 else { return }
-        powerMetrics.pause()
+        // Cadence lente mais jamais d'arrêt : l'historique par app
+        // continue de s'écrire pour quelques milliwatts.
+        powerMetrics.setCadence(seconds: 30)
         restartPolling(every: .seconds(30))
     }
 

@@ -4,10 +4,13 @@ import SwiftUI
 /// Bandeau héros : jauge (autonomie au centre), flux d'énergie, stats.
 /// Dessous : classement des apps + panneau détail permanent (master-detail).
 struct ContentView: View {
+    enum Tab { case live, history }
+
     @Environment(BatteryService.self) private var battery
     @Environment(ProcessService.self) private var processes
     @State private var showPrecisionSetup = false
     @State private var selectedAppID: pid_t?
+    @State private var tab: Tab = .live
 
     var body: some View {
         Group {
@@ -41,18 +44,31 @@ struct ContentView: View {
     }
 
     private func dashboard(_ snap: BatterySnapshot) -> some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
+            Picker("", selection: $tab) {
+                Text("Temps réel").tag(Tab.live)
+                Text("Historique").tag(Tab.history)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 240)
+
             headerRow(snap)
 
-            HStack(alignment: .top, spacing: 14) {
-                appsSection
-                    .frame(maxWidth: .infinity)
-                AppDetailPanel(app: selectedApp)
-                    .frame(width: 320)
+            Group {
+                if tab == .live {
+                    HStack(alignment: .top, spacing: 14) {
+                        appsSection
+                            .frame(maxWidth: .infinity)
+                        AppDetailPanel(app: selectedApp)
+                            .frame(width: 320)
+                    }
+                } else {
+                    HistoryView()
+                }
             }
             .frame(maxHeight: .infinity)
         }
-        .frame(width: 880, height: 640, alignment: .top)
+        .frame(width: 880, height: 660, alignment: .top)
         .padding(20)
         .animation(.spring(duration: 0.5), value: snap)
     }
@@ -193,7 +209,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 12)
             } else {
-                let top = Array(processes.apps.prefix(9))
+                let top = Array(processes.apps.prefix(8))
                 let maxImpact = top.first?.energyImpact ?? 1
                 VStack(spacing: 8) {
                     ForEach(top) { app in

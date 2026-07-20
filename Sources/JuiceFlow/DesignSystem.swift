@@ -132,7 +132,10 @@ extension AppPower {
 /// de service a son identité au lieu d'un engrenage générique répété.
 enum DaemonGlyph {
     static func forApp(_ app: AppPower) -> (symbol: String, color: Color) {
-        let name = app.name
+        forName(app.name)
+    }
+
+    static func forName(_ name: String) -> (symbol: String, color: Color) {
         if name.contains("WindowServer") || name.contains("Affichage") { return ("display", .blue) }
         if name.contains("Noyau") || name == "kernel_task" { return ("cpu", .purple) }
         if name.localizedCaseInsensitiveContains("spotlight") || name.hasPrefix("mds") {

@@ -20,7 +20,6 @@ final class PowerMetricsService {
         case probing        // vérification de l'autorisation en cours
         case unavailable    // pas de règle sudoers : mode estimation
         case running
-        case paused         // personne ne regarde : flux arrêté volontairement
         case failed(String)
     }
 
@@ -30,11 +29,25 @@ final class PowerMetricsService {
     @ObservationIgnored private var lastSample: ContinuousClock.Instant?
     @ObservationIgnored private var process: Process?
     @ObservationIgnored private var buffer = Data()
+    /// 3 s quand une vue est visible, 30 s sinon — le flux ne s'arrête
+    /// jamais : l'historique par app s'écrit 24 h/24 pour presque rien.
+    @ObservationIgnored private var intervalSeconds = 3
 
-    /// Vrai si des données précises fraîches (< 10 s) sont disponibles.
+    /// Vrai si des données précises fraîches sont disponibles (fenêtre de
+    /// fraîcheur proportionnelle à la cadence courante).
     var isFresh: Bool {
         guard state == .running, let lastSample else { return false }
-        return lastSample.duration(to: .now) < .seconds(10)
+        return lastSample.duration(to: .now) < .seconds(intervalSeconds * 3 + 5)
+    }
+
+    /// Change la cadence d'échantillonnage (redémarre le flux si actif).
+    func setCadence(seconds: Int) {
+        guard intervalSeconds != seconds else { return }
+        intervalSeconds = seconds
+        if process != nil {
+            stop()
+            start()
+        }
     }
 
     init() {
@@ -89,7 +102,7 @@ final class PowerMetricsService {
             "--samplers", "tasks",
             "--show-process-energy",  // sans ce flag, pas de clé energy_impact
             "--show-process-gpu",
-            "-i", "3000",
+            "-i", "\(intervalSeconds * 1000)",
             "--format", "plist",
         ]
         let stdout = Pipe()
@@ -122,21 +135,11 @@ final class PowerMetricsService {
         buffer.removeAll()
     }
 
-    /// Pause volontaire (aucune vue visible) : on garde le souvenir de
-    /// l'autorisation pour un redémarrage sans re-sonder sudo.
-    func pause() {
-        guard process != nil else { return }
-        stop()
-        state = .paused
-    }
-
+    /// Relance le flux s'il est tombé. La sonde sudo (~50 ms) est assez
+    /// rapide pour être systématique.
     func resumeIfAuthorized() async {
         guard process == nil else { return }
-        if state == .paused {
-            start()
-        } else {
-            await probeAndStart()
-        }
+        await probeAndStart()
     }
 
     private func ingest(_ data: Data) {
