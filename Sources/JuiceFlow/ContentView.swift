@@ -18,48 +18,25 @@ struct ContentView: View {
                 .padding(40)
             }
         }
-        .frame(width: 420)
     }
 
     private func dashboard(_ snap: BatterySnapshot) -> some View {
-        VStack(spacing: 14) {
-            BatteryGauge(snapshot: snap)
-                .padding(.top, 26)
-                .padding(.bottom, 8)
-
-            PowerFlowCard(snapshot: snap)
-
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())],
-                spacing: 12
-            ) {
-                MetricCard(
-                    icon: "heart.fill", iconColor: .pink,
-                    title: "Santé",
-                    value: String(format: "%.0f %%", snap.healthPercent),
-                    subtitle: "\(snap.nominalCapacity) / \(snap.designCapacity) mAh"
-                )
-                MetricCard(
-                    icon: "clock", iconColor: .purple,
-                    title: "Temps restant",
-                    value: snap.timeRemainingValue,
-                    subtitle: snap.timeRemainingCaption
-                )
-                MetricCard(
-                    icon: "thermometer.medium", iconColor: .orange,
-                    title: "Température",
-                    value: String(format: "%.1f °C", snap.temperature),
-                    subtitle: snap.temperature < 40 ? "normale" : "élevée"
-                )
-                MetricCard(
-                    icon: "arrow.triangle.2.circlepath", iconColor: .blue,
-                    title: "Cycles",
-                    value: "\(snap.cycleCount)",
-                    subtitle: "limite de conception ~1000"
-                )
+        HStack(alignment: .top, spacing: 14) {
+            // Colonne gauche : la batterie en un clin d'œil.
+            VStack(spacing: 16) {
+                BatteryGauge(snapshot: snap)
+                    .padding(.top, 22)
+                PowerFlowCard(snapshot: snap)
             }
+            .frame(width: 300)
 
-            appsSection
+            // Colonne droite : métriques détaillées et classement des apps.
+            VStack(spacing: 12) {
+                bentoGrid(snap)
+                appsSection
+            }
+            .frame(width: 340)
+            .padding(.top, 16)
         }
         .padding(20)
         .background(alignment: .top) {
@@ -71,6 +48,38 @@ struct ContentView: View {
             .ignoresSafeArea()
         }
         .animation(.spring(duration: 0.5), value: snap)
+    }
+
+    private func bentoGrid(_ snap: BatterySnapshot) -> some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())],
+            spacing: 12
+        ) {
+            MetricCard(
+                icon: "heart.fill", iconColor: .pink,
+                title: "Santé",
+                value: String(format: "%.0f %%", snap.healthPercent),
+                subtitle: "\(snap.nominalCapacity) / \(snap.designCapacity) mAh"
+            )
+            MetricCard(
+                icon: "clock", iconColor: .purple,
+                title: "Temps restant",
+                value: snap.timeRemainingValue,
+                subtitle: snap.timeRemainingCaption
+            )
+            MetricCard(
+                icon: "thermometer.medium", iconColor: .orange,
+                title: "Température",
+                value: String(format: "%.1f °C", snap.temperature),
+                subtitle: snap.temperature < 40 ? "normale" : "élevée"
+            )
+            MetricCard(
+                icon: "arrow.triangle.2.circlepath", iconColor: .blue,
+                title: "Cycles",
+                value: "\(snap.cycleCount)",
+                subtitle: "limite de conception ~1000"
+            )
+        }
     }
 
     private var appsSection: some View {
@@ -85,9 +94,10 @@ struct ContentView: View {
                     .padding(.vertical, 2)
                     .background(Capsule().fill(.orange.opacity(0.14)))
                 Spacer()
-                Text("\(processes.trackedProcessCount) processus suivis")
+                Text("\(processes.trackedProcessCount) processus")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .lineLimit(1)
             }
             .help("Score estimé à partir du CPU et des réveils système (même échelle que le Moniteur d'activité : ~100 ≈ un cœur saturé). Le mode powermetrics apportera la mesure exacte.")
 
