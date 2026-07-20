@@ -44,6 +44,7 @@ struct JuiceFlowApp: App {
             ContentView()
                 .environment(battery)
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
     }
 }

@@ -3,7 +3,7 @@ import IOKit
 
 /// Photographie instantanée de l'état de la batterie, lue depuis le registre
 /// IOKit `AppleSmartBattery`. Aucun privilège requis.
-struct BatterySnapshot: Sendable {
+struct BatterySnapshot: Sendable, Equatable {
     enum PowerState: Sendable {
         case charging            // branché, en charge
         case discharging         // sur batterie
