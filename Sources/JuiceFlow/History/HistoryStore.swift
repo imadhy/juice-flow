@@ -133,6 +133,19 @@ final class HistoryStore {
         return result
     }
 
+    /// Énergie système consommée entre deux instants, en Wh.
+    func energyWh(since: Date, until: Date) -> Double {
+        var energy = 0.0
+        withStatement("SELECT COALESCE(SUM(system_watts), 0) / 60 FROM battery_samples WHERE ts >= ? AND ts < ?") { statement in
+            sqlite3_bind_double(statement, 1, since.timeIntervalSince1970)
+            sqlite3_bind_double(statement, 2, until.timeIntervalSince1970)
+            if sqlite3_step(statement) == SQLITE_ROW {
+                energy = sqlite3_column_double(statement, 0)
+            }
+        }
+        return energy
+    }
+
     func daySummary(since: Date) -> DaySummary {
         var summary = DaySummary(minutesOnBattery: 0, energyWh: 0)
         let sql = """

@@ -11,6 +11,7 @@ struct HistoryView: View {
     @State private var curve: [CurvePoint] = []
     @State private var topApps: [AppDayTotal] = []
     @State private var summary = DaySummary(minutesOnBattery: 0, energyWh: 0)
+    @State private var energyDelta: Double?
     @State private var iconCache: [String: NSImage] = [:]
     @State private var refreshTask: Task<Void, Never>?
 
@@ -41,6 +42,7 @@ struct HistoryView: View {
         curve = history.curve(hoursBack: 24)
         topApps = history.topAppsToday(limit: 8)
         summary = history.daySummary()
+        energyDelta = history.energyDeltaVersusYesterday()
     }
 
     // MARK: - Résumé du jour
@@ -52,7 +54,9 @@ struct HistoryView: View {
                      label: "sur batterie aujourd'hui")
             StatChip(icon: "bolt.fill", color: .yellow,
                      value: String(format: "%.1f Wh", summary.energyWh),
-                     label: "consommés aujourd'hui")
+                     label: energyDelta.map {
+                         String(format: "consommés · %+.0f %% vs hier", $0)
+                     } ?? "consommés aujourd'hui")
         }
     }
 

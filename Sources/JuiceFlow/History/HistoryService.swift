@@ -72,4 +72,17 @@ final class HistoryService {
         store?.daySummary(since: Calendar.current.startOfDay(for: .now))
             ?? DaySummary(minutesOnBattery: 0, energyWh: 0)
     }
+
+    /// Variation vs hier à la même heure, en % (nil si pas assez de données).
+    func energyDeltaVersusYesterday() -> Double? {
+        guard let store else { return nil }
+        let midnight = Calendar.current.startOfDay(for: .now)
+        let elapsed = Date.now.timeIntervalSince(midnight)
+        let yesterdayStart = midnight.addingTimeInterval(-86_400)
+        let yesterday = store.energyWh(since: yesterdayStart,
+                                       until: yesterdayStart.addingTimeInterval(elapsed))
+        let today = store.energyWh(since: midnight, until: .now)
+        guard yesterday > 0.3, today > 0.1 else { return nil }
+        return (today - yesterday) / yesterday * 100
+    }
 }

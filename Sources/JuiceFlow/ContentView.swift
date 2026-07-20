@@ -90,25 +90,37 @@ struct ContentView: View {
             Divider()
                 .padding(.vertical, 6)
 
-            VStack(alignment: .leading, spacing: 14) {
-                StatChip(icon: "heart.fill", color: .pink,
-                         value: String(format: "%.0f %%", snap.healthPercent),
-                         label: "Santé · \(snap.nominalCapacity) mAh",
-                         showsBackground: false)
-                StatChip(icon: "thermometer.medium", color: .orange,
-                         value: String(format: "%.1f °C", snap.temperature),
-                         label: snap.temperature < 40 ? "Température normale" : "Température élevée",
-                         showsBackground: false)
-                StatChip(icon: "arrow.triangle.2.circlepath", color: .blue,
-                         value: "\(snap.cycleCount)",
-                         label: "Cycles · max ~1000",
-                         showsBackground: false)
-            }
-            .frame(width: 165)
+            statsColumn(snap)
+                .frame(width: 165)
         }
         .padding(18)
         .card()
         .frame(height: 196)
+    }
+
+    private func statsColumn(_ snap: BatterySnapshot) -> some View {
+        let score = SessionScore.compute(battery: battery, processes: processes)
+        return VStack(alignment: .leading, spacing: 10) {
+            StatChip(icon: "speedometer", color: score.color,
+                     value: "\(score.value)",
+                     label: "score de session",
+                     showsBackground: false)
+                .help(score.factors.isEmpty
+                      ? "Session saine : rien à signaler."
+                      : score.factors.joined(separator: "\n"))
+            StatChip(icon: "heart.fill", color: .pink,
+                     value: String(format: "%.0f %%", snap.healthPercent),
+                     label: "Santé · \(snap.nominalCapacity) mAh",
+                     showsBackground: false)
+            StatChip(icon: "thermometer.medium", color: .orange,
+                     value: String(format: "%.1f °C", snap.temperature),
+                     label: snap.temperature < 40 ? "Température normale" : "Température élevée",
+                     showsBackground: false)
+            StatChip(icon: "arrow.triangle.2.circlepath", color: .blue,
+                     value: "\(snap.cycleCount)",
+                     label: "Cycles · max ~1000",
+                     showsBackground: false)
+        }
     }
 
     /// Le gros titre contextuel du bandeau : toujours une réponse en temps.

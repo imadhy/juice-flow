@@ -113,6 +113,7 @@ struct JuiceFlowApp: App {
     @State private var battery: BatteryService
     @State private var processes: ProcessService
     @State private var history: HistoryService
+    @State private var alerts: AlertService
 
     init() {
         let battery = BatteryService()
@@ -120,6 +121,7 @@ struct JuiceFlowApp: App {
         _battery = State(initialValue: battery)
         _processes = State(initialValue: processes)
         _history = State(initialValue: HistoryService(battery: battery, processes: processes))
+        _alerts = State(initialValue: AlertService(battery: battery, processes: processes))
     }
 
     var body: some Scene {
