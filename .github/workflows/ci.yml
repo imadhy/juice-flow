@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Build & smoke tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build (release, warnings as errors)
+        run: swift build -c release -Xswiftc -warnings-as-errors
+
+      - name: Smoke test — process ranking (no privileges needed)
+        run: .build/release/JuiceFlow --top 2
+
+      - name: Smoke test — battery dump (runners have no battery, graceful exit expected)
+        run: .build/release/JuiceFlow --dump || echo "No battery on CI runner — expected."
+
+      - name: Bundle the .app
+        run: ./scripts/bundle.sh --no-open
+
+      - name: Package the .dmg
+        run: ./scripts/make-dmg.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JuiceFlow-dmg
+          path: build/JuiceFlow-*.dmg
