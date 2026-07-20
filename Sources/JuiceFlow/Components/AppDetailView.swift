@@ -85,7 +85,11 @@ struct AppDetailPanel: View {
             }
             .font(.caption)
 
-            if !app.topChildren.isEmpty {
+            // La répartition n'apparaît que si elle apporte de l'info :
+            // plusieurs membres, ou un membre unique au nom différent du
+            // groupe (ex : la VM Virtualization sous limactl).
+            if !app.topChildren.isEmpty,
+               app.topChildren.count > 1 || app.topChildren.first?.name != app.name {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Répartition")
                         .font(.caption.weight(.semibold))
