@@ -157,18 +157,21 @@ final class PowerMetricsService {
         if buffer.count > 20_000_000 { buffer.removeAll() }
 
         // Seul le document le plus récent compte, et son parsing (~300 Ko de
-        // plist) n'a rien à faire sur le thread principal.
+        // plist) n'a rien à faire sur le thread principal. Le retour sur
+        // l'acteur passe par une méthode isolée (portable entre versions du
+        // compilateur, contrairement à MainActor.run + capture de self).
         guard let latest = PowerMetricsParser.splitStream(buffer: &buffer).last else { return }
         Task.detached(priority: .utility) { [weak self] in
             let parsed = PowerMetricsParser.tasks(from: latest)
             guard !parsed.isEmpty else { return }
-            await MainActor.run {
-                guard let self else { return }
-                self.tasks = parsed
-                self.lastSample = .now
-                if self.state != .running { self.state = .running }
-            }
+            await self?.apply(parsed)
         }
+    }
+
+    private func apply(_ parsed: [PMTask]) {
+        tasks = parsed
+        lastSample = .now
+        if state != .running { state = .running }
     }
 
     private func streamDied(status: Int32) {
