@@ -4,6 +4,7 @@ import SwiftUI
 struct AppEnergyRow: View {
     let app: AppPower
     let maxImpact: Double
+    @State private var isHovering = false
 
     private var color: Color {
         if let watts = app.watts {
@@ -20,9 +21,23 @@ struct AppEnergyRow: View {
                 .frame(width: 22, height: 22)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(app.name)
-                    .font(.callout)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(app.name)
+                        .font(.callout)
+                        .lineLimit(1)
+                    if app.isRunaway {
+                        Image(systemName: "flame.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                            .help("Consommation en forte hausse")
+                    }
+                    if app.isBackgroundActive {
+                        Image(systemName: "moon.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.indigo)
+                            .help("Consomme en arrière-plan")
+                    }
+                }
                 if app.processCount > 1 {
                     Text("\(app.processCount) processus")
                         .font(.caption2)
@@ -43,6 +58,14 @@ struct AppEnergyRow: View {
         // Hauteur constante quelle que soit la présence du sous-titre :
         // évite que la liste change de taille à chaque rafraîchissement.
         .frame(height: 34)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isHovering ? Color.primary.opacity(0.06) : .clear)
+        )
+        .padding(.horizontal, -6)
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
     }
 
     @ViewBuilder

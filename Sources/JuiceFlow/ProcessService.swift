@@ -16,13 +16,21 @@ struct AppPower: Identifiable {
     var cpuPercent: Double     // % d'un cœur (peut dépasser 100 en multithread)
     var wakeupsPerSec: Double
     var processCount: Int
+    /// Dernières valeurs lissées (~2 min), pour sparkline et détection.
+    var history: [Double] = []
+    /// 🔥 : consommation en forte hausse par rapport à sa propre moyenne.
+    var isRunaway = false
+    /// 🌙 : app graphique qui consomme alors qu'elle n'est pas au premier plan.
+    var isBackgroundActive = false
 }
 
 extension AppPower: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.id == rhs.id && lhs.name == rhs.name && lhs.energyImpact == rhs.energyImpact
             && lhs.watts == rhs.watts && lhs.cpuPercent == rhs.cpuPercent
-            && lhs.processCount == rhs.processCount
+            && lhs.processCount == rhs.processCount && lhs.history == rhs.history
+            && lhs.isRunaway == rhs.isRunaway
+            && lhs.isBackgroundActive == rhs.isBackgroundActive
     }
 }
 
@@ -43,6 +51,7 @@ final class ProcessService {
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var iconCache: [pid_t: NSImage] = [:]
     @ObservationIgnored private var smoothedImpacts: [pid_t: Double] = [:]
+    @ObservationIgnored private var histories: [pid_t: [Double]] = [:]
 
     init() {
         previous = ProcessSampler.snapshot()
@@ -73,19 +82,49 @@ final class ProcessService {
         previous = current
     }
 
-    /// Lissage EMA + tri + publication, commun aux deux sources.
+    /// Lissage EMA, historique, badges, tri : commun aux deux sources.
     private func publish(_ freshList: [AppPower], processCount: Int, source: ImpactSource) {
-        if source != self.source { smoothedImpacts.removeAll() }
+        if source != self.source {
+            // Changement d'unité (score ⇄ milliwatts) : on repart à zéro.
+            smoothedImpacts.removeAll()
+            histories.removeAll()
+        }
+        let frontmostPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let runawayFloor = source == .precision ? 1000.0 : 60.0      // 1 W / gros score
+        let backgroundFloor = source == .precision ? 800.0 : 50.0
+
         var list = freshList
         for index in list.indices {
             let id = list[index].id
             if let prior = smoothedImpacts[id] {
                 list[index].energyImpact = prior * 0.55 + list[index].energyImpact * 0.45
             }
-            smoothedImpacts[id] = list[index].energyImpact
+            let smoothed = list[index].energyImpact
+            smoothedImpacts[id] = smoothed
+
+            var history = histories[id] ?? []
+            history.append(smoothed)
+            if history.count > 40 { history.removeFirst(history.count - 40) }
+            histories[id] = history
+            list[index].history = history
+
+            // 🔥 : nettement au-dessus de sa propre moyenne récente
+            // (le badge s'éteint de lui-même quand la moyenne rattrape).
+            if history.count >= 8 {
+                let baseline = history.dropLast(4).suffix(16)
+                let average = baseline.reduce(0, +) / Double(baseline.count)
+                list[index].isRunaway = smoothed > max(average * 3, runawayFloor)
+            }
+
+            // 🌙 : app graphique, pas au premier plan, consommation notable.
+            list[index].isBackgroundActive = list[index].icon != nil
+                && list[index].id != frontmostPid
+                && smoothed > backgroundFloor
         }
+
         let alive = Set(list.map(\.id))
         smoothedImpacts = smoothedImpacts.filter { alive.contains($0.key) }
+        histories = histories.filter { alive.contains($0.key) }
         if source == .precision {
             // En précision, la métrique lissée est en milliwatts.
             for index in list.indices { list[index].watts = list[index].energyImpact / 1000 }

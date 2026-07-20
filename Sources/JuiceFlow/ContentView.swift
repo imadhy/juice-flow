@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(BatteryService.self) private var battery
     @Environment(ProcessService.self) private var processes
     @State private var showPrecisionSetup = false
+    @State private var selectedAppID: pid_t?
 
     var body: some View {
         Group {
@@ -93,6 +94,13 @@ struct ContentView: View {
         }
     }
 
+    private func detailBinding(for id: pid_t) -> Binding<Bool> {
+        Binding(
+            get: { selectedAppID == id },
+            set: { presented in selectedAppID = presented ? id : nil }
+        )
+    }
+
     private func badgeLabel(_ text: String, color: Color) -> some View {
         Text(text)
             .font(.caption2.weight(.medium))
@@ -148,6 +156,13 @@ struct ContentView: View {
                 VStack(spacing: 10) {
                     ForEach(top) { app in
                         AppEnergyRow(app: app, maxImpact: maxImpact)
+                            .onTapGesture { selectedAppID = app.id }
+                            .popover(
+                                isPresented: detailBinding(for: app.id),
+                                arrowEdge: .trailing
+                            ) {
+                                AppDetailView(appID: app.id)
+                            }
                     }
                 }
             }
