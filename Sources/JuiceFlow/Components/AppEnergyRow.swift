@@ -6,7 +6,12 @@ struct AppEnergyRow: View {
     let maxImpact: Double
 
     private var color: Color {
-        if app.energyImpact < 10 { .green } else if app.energyImpact < 60 { .orange } else { .red }
+        if let watts = app.watts {
+            // Mode précision : seuils en watts réels.
+            if watts < 0.5 { .green } else if watts < 2.5 { .orange } else { .red }
+        } else {
+            if app.energyImpact < 10 { .green } else if app.energyImpact < 60 { .orange } else { .red }
+        }
     }
 
     var body: some View {
@@ -33,7 +38,7 @@ struct AppEnergyRow: View {
                 .font(.callout.weight(.semibold))
                 .monospacedDigit()
                 .contentTransition(.numericText())
-                .frame(width: 48, alignment: .trailing)
+                .frame(width: 56, alignment: .trailing)
         }
         // Hauteur constante quelle que soit la présence du sous-titre :
         // évite que la liste change de taille à chaque rafraîchissement.
@@ -65,7 +70,12 @@ struct AppEnergyRow: View {
     }
 
     private var impactText: String {
-        app.energyImpact < 10
+        if let watts = app.watts {
+            return watts < 1
+                ? String(format: "%.0f mW", watts * 1000)
+                : String(format: "%.1f W", watts)
+        }
+        return app.energyImpact < 10
             ? String(format: "%.1f", app.energyImpact)
             : String(format: "%.0f", app.energyImpact)
     }

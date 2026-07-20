@@ -8,9 +8,11 @@ struct AppPower: Identifiable {
     var name: String
     var bundleID: String?
     var icon: NSImage?
-    /// Score d'impact énergétique, même échelle que le Moniteur d'activité :
-    /// ~100 ≈ un cœur saturé. Formule : % CPU + pénalité wakeups.
+    /// Métrique de classement. En estimation : score façon Moniteur
+    /// d'activité (~100 ≈ un cœur saturé). En précision : milliwatts.
     var energyImpact: Double
+    /// Puissance réelle en watts — uniquement en mode précision.
+    var watts: Double?
     var cpuPercent: Double     // % d'un cœur (peut dépasser 100 en multithread)
     var wakeupsPerSec: Double
     var processCount: Int
@@ -19,15 +21,23 @@ struct AppPower: Identifiable {
 extension AppPower: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.id == rhs.id && lhs.name == rhs.name && lhs.energyImpact == rhs.energyImpact
-            && lhs.cpuPercent == rhs.cpuPercent && lhs.processCount == rhs.processCount
+            && lhs.watts == rhs.watts && lhs.cpuPercent == rhs.cpuPercent
+            && lhs.processCount == rhs.processCount
     }
 }
 
 @MainActor
 @Observable
 final class ProcessService {
+    enum ImpactSource: Equatable {
+        case estimation   // deltas CPU libproc, sans privilèges
+        case precision    // powermetrics : mesure officielle Apple
+    }
+
     private(set) var apps: [AppPower] = []
     private(set) var trackedProcessCount = 0
+    private(set) var source: ImpactSource = .estimation
+    let powerMetrics = PowerMetricsService()
 
     @ObservationIgnored private var previous: ProcessSampler.Snapshot?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
@@ -45,24 +55,90 @@ final class ProcessService {
     }
 
     private func refresh() {
+        if powerMetrics.isFresh {
+            publish(Self.fromPowerMetrics(powerMetrics.tasks, iconCache: &iconCache),
+                    processCount: powerMetrics.tasks.count,
+                    source: .precision)
+            // L'échantillonnage estimation reste chaud pour un repli sans trou.
+            previous = ProcessSampler.snapshot()
+            return
+        }
+
         let current = ProcessSampler.snapshot()
         if let previous {
-            var list = Self.aggregate(from: previous, to: current, iconCache: &iconCache)
-            // Moyenne glissante exponentielle : les scores glissent au lieu de
-            // sauter, le classement arrête de frétiller à chaque échantillon.
-            for index in list.indices {
-                let id = list[index].id
-                if let prior = smoothedImpacts[id] {
-                    list[index].energyImpact = prior * 0.55 + list[index].energyImpact * 0.45
-                }
-                smoothedImpacts[id] = list[index].energyImpact
-            }
-            let alive = Set(list.map(\.id))
-            smoothedImpacts = smoothedImpacts.filter { alive.contains($0.key) }
-            apps = list.sorted { $0.energyImpact > $1.energyImpact }
-            trackedProcessCount = current.usage.count
+            publish(Self.aggregate(from: previous, to: current, iconCache: &iconCache),
+                    processCount: current.usage.count,
+                    source: .estimation)
         }
         previous = current
+    }
+
+    /// Lissage EMA + tri + publication, commun aux deux sources.
+    private func publish(_ freshList: [AppPower], processCount: Int, source: ImpactSource) {
+        if source != self.source { smoothedImpacts.removeAll() }
+        var list = freshList
+        for index in list.indices {
+            let id = list[index].id
+            if let prior = smoothedImpacts[id] {
+                list[index].energyImpact = prior * 0.55 + list[index].energyImpact * 0.45
+            }
+            smoothedImpacts[id] = list[index].energyImpact
+        }
+        let alive = Set(list.map(\.id))
+        smoothedImpacts = smoothedImpacts.filter { alive.contains($0.key) }
+        if source == .precision {
+            // En précision, la métrique lissée est en milliwatts.
+            for index in list.indices { list[index].watts = list[index].energyImpact / 1000 }
+        }
+        apps = list.sorted { $0.energyImpact > $1.energyImpact }
+        trackedProcessCount = processCount
+        self.source = source
+    }
+
+    /// Construit le classement depuis les tâches powermetrics, regroupées par
+    /// application via le PID responsable (comme le mode estimation).
+    static func fromPowerMetrics(
+        _ pmTasks: [PMTask], iconCache: inout [pid_t: NSImage]
+    ) -> [AppPower] {
+        struct Group {
+            var impact = 0.0
+            var cpuMs = 0.0
+            var count = 0
+            var leaderName: String?
+        }
+        var groups: [pid_t: Group] = [:]
+
+        for task in pmTasks {
+            let rpid = task.pid > 0 ? ProcessSampler.responsiblePid(task.pid) : task.pid
+            var group = groups[rpid, default: Group()]
+            group.impact += task.energyImpact
+            group.cpuMs += task.cpuMsPerS
+            group.count += 1
+            if rpid == task.pid { group.leaderName = task.name }
+            groups[rpid] = group
+        }
+
+        return groups.compactMap { rpid, group in
+            guard group.impact >= 5 else { return nil }  // < 5 mW : bruit
+            var identity = resolveIdentity(rpid, iconCache: &iconCache)
+            // powermetrics voit des processus que libproc ne peut pas nommer
+            // sans privilèges (WindowServer, kernel…) : son nom fait foi.
+            if identity.icon == nil, identity.name.hasPrefix("PID "), let leader = group.leaderName {
+                identity.name = friendlyDaemonNames[leader] ?? leader
+            }
+            return AppPower(
+                id: rpid,
+                name: identity.name,
+                bundleID: identity.bundleID,
+                icon: identity.icon,
+                energyImpact: group.impact,  // milliwatts
+                watts: group.impact / 1000,
+                cpuPercent: group.cpuMs / 10,  // ms par seconde → % d'un cœur
+                wakeupsPerSec: 0,
+                processCount: group.count
+            )
+        }
+        .sorted { $0.energyImpact > $1.energyImpact }
     }
 
     /// Agrège les deltas d'énergie/CPU entre deux échantillons par application.

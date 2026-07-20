@@ -9,6 +9,8 @@ enum Main {
             dumpSnapshot()
         } else if CommandLine.arguments.contains("--top") {
             dumpTopApps()
+        } else if CommandLine.arguments.contains("--pm") {
+            dumpPowerMetrics()
         } else {
             JuiceFlowApp.main()
         }
@@ -22,7 +24,53 @@ enum Main {
         print("Échantillonnage sur \(interval) s (\(first.usage.count) processus)…")
         Thread.sleep(forTimeInterval: interval)
         let second = ProcessSampler.snapshot()
+        dumpTopAppsTable(first: first, second: second)
+    }
 
+    /// Mode diagnostic : `JuiceFlow --pm` prend un échantillon powermetrics
+    /// (nécessite la règle sudoers) et imprime le classement précis.
+    private static func dumpPowerMetrics() {
+        print("Échantillon powermetrics via sudo -n…")
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+        proc.arguments = ["-n", "/usr/bin/powermetrics",
+                          "--samplers", "tasks", "--show-process-energy", "--show-process-gpu",
+                          "-i", "1000", "-n", "1", "--format", "plist"]
+        let stdout = Pipe()
+        let stderr = Pipe()
+        proc.standardOutput = stdout
+        proc.standardError = stderr
+        do { try proc.run() } catch {
+            print("Impossible de lancer sudo : \(error.localizedDescription)")
+            exit(1)
+        }
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        let errText = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else {
+            print("Échec (code \(proc.terminationStatus)) : \(errText)")
+            print("Règle sudoers absente ? Cliquez « passer en précision » dans l'app.")
+            exit(1)
+        }
+
+        var buffer = data
+        var documents = PowerMetricsParser.splitStream(buffer: &buffer)
+        if !buffer.isEmpty { documents.append(buffer) }
+        let tasks = documents.flatMap { PowerMetricsParser.tasks(from: $0) }
+        print("\(data.count) octets, \(documents.count) document(s), \(tasks.count) tâches")
+        print("  IMPACT   CPU ms/s   GPU ms/s   PID    NOM")
+        for task in tasks.sorted(by: { $0.energyImpact > $1.energyImpact }).prefix(15) {
+            let impact = String(format: "%7.1f", task.energyImpact)
+            let cpu = String(format: "%9.1f", task.cpuMsPerS)
+            let gpu = String(format: "%9.1f", task.gpuMsPerS)
+            let pid = String(format: "%6d", task.pid)
+            print("  \(impact)  \(cpu)  \(gpu)  \(pid)   \(task.name)")
+        }
+    }
+
+    /// Mode diagnostic : `JuiceFlow --top` échantillonne et imprime le
+    /// classement estimation, à croiser avec `top -o cpu`.
+    private static func dumpTopAppsTable(first: ProcessSampler.Snapshot, second: ProcessSampler.Snapshot) {
         var iconCache: [pid_t: NSImage] = [:]
         let apps = ProcessService.aggregate(from: first, to: second, iconCache: &iconCache)
         print("  IMPACT   % CPU   RÉVEILS/S  PROC  APPLICATION")

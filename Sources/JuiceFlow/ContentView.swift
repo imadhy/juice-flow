@@ -4,6 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(BatteryService.self) private var battery
     @Environment(ProcessService.self) private var processes
+    @State private var showPrecisionSetup = false
 
     var body: some View {
         Group {
@@ -75,24 +76,62 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private var sourceBadge: some View {
+        if processes.source == .precision {
+            badgeLabel("précision", color: .teal)
+        } else {
+            badgeLabel("estimation", color: .orange)
+            if case .unavailable = processes.powerMetrics.state {
+                Button("passer en précision") { showPrecisionSetup = true }
+                    .buttonStyle(.link)
+                    .font(.caption2)
+            } else if case .failed = processes.powerMetrics.state {
+                badgeLabel("erreur powermetrics", color: .red)
+                    .help("Le flux powermetrics s'est interrompu — repli automatique sur l'estimation.")
+            }
+        }
+    }
+
+    private func badgeLabel(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.14)))
+    }
+
     private var appsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("Impact énergétique")
                     .font(.headline)
-                Text("estimation")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(.orange.opacity(0.14)))
+                sourceBadge
                 Spacer()
                 Text("\(processes.trackedProcessCount) processus")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
-            .help("Score estimé à partir du CPU et des réveils système (même échelle que le Moniteur d'activité : ~100 ≈ un cœur saturé). Le mode powermetrics apportera la mesure exacte.")
+            .help(processes.source == .precision
+                ? "Mesure officielle powermetrics en watts réels : CPU (cœurs P/E), GPU et wakeups, processus système compris."
+                : "Score estimé à partir du CPU (même échelle que le Moniteur d'activité : ~100 ≈ un cœur saturé). Activez la précision pour des watts réels, GPU et processus système compris.")
+            .alert("Activer le mode précision", isPresented: $showPrecisionSetup) {
+                Button("Activer") {
+                    Task { await processes.powerMetrics.installAuthorizationAndStart() }
+                }
+                Button("Annuler", role: .cancel) {}
+            } message: {
+                Text("""
+                JuiceFlow utilisera powermetrics, l'outil de mesure d'Apple, \
+                pour un impact énergétique exact : cœurs P/E, GPU et processus \
+                système (WindowServer…) compris.
+
+                Une règle sudo limitée à powermetrics sera créée pour votre \
+                utilisateur. Mot de passe administrateur demandé une seule fois.
+                """)
+            }
 
             if processes.apps.isEmpty {
                 HStack(spacing: 8) {
