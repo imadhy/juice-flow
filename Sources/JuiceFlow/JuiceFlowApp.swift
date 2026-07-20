@@ -102,6 +102,8 @@ enum Main {
         SMC batterie    \(s.watts) W (signé, convention charge > 0)
         SMC système     \(s.systemWatts.map { String(format: "%.2f W", $0) } ?? "indisponible")
         SMC chargeur    \(s.adapterWatts.map { String(format: "%.2f W", $0) } ?? "indisponible")
+        Énergie rest.   \(String(format: "%.1f", s.remainingEnergyWh)) Wh (\(s.rawCurrentCapacity) mAh × \(String(format: "%.2f", s.voltage)) V)
+        Autonomie est.  \(s.estimatedAutonomyHours.map { TimeFormat.hours($0) } ?? "—") (drain réf. \(s.referenceDrainWatts.map { String(format: "%.1f W", $0) } ?? "—"))
         """)
     }
 }

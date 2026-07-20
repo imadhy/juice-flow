@@ -4,6 +4,7 @@ import SwiftUI
 struct AppEnergyRow: View {
     let app: AppPower
     let maxImpact: Double
+    var isSelected = false
     @State private var isHovering = false
 
     private var color: Color {
@@ -21,21 +22,15 @@ struct AppEnergyRow: View {
                 .frame(width: 22, height: 22)
 
             VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Text(app.name)
                         .font(.callout)
                         .lineLimit(1)
                     if app.isRunaway {
-                        Image(systemName: "flame.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                            .help("Consommation en forte hausse")
+                        badge("flame.fill", .red, help: "Consommation en forte hausse")
                     }
                     if app.isBackgroundActive {
-                        Image(systemName: "moon.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.indigo)
-                            .help("Consomme en arrière-plan")
+                        badge("moon.fill", .indigo, help: "Consomme en arrière-plan")
                     }
                 }
                 if app.processCount > 1 {
@@ -61,11 +56,24 @@ struct AppEnergyRow: View {
         .padding(.horizontal, 6)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isHovering ? Color.primary.opacity(0.06) : .clear)
+                .fill(isSelected
+                      ? Color.accentColor.opacity(0.16)
+                      : isHovering ? Color.primary.opacity(0.06) : .clear)
         )
         .padding(.horizontal, -6)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
+    }
+
+    /// Pastille pleine : glyphe blanc sur cercle coloré — visible au premier
+    /// coup d'œil, contrairement aux petites icônes teintées.
+    private func badge(_ symbol: String, _ color: Color, help: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 8.5, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 15, height: 15)
+            .background(Circle().fill(color.gradient))
+            .help(help)
     }
 
     @ViewBuilder

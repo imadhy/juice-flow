@@ -18,8 +18,9 @@ struct BatterySnapshot: Sendable, Equatable {
     var voltage: Double = 0   // volts
     var amperage: Double = 0  // ampères, signé
     var cycleCount: Int = 0
-    var designCapacity: Int = 0   // mAh, capacité d'origine
-    var nominalCapacity: Int = 0  // mAh, capacité actuelle réelle
+    var designCapacity: Int = 0       // mAh, capacité d'origine
+    var nominalCapacity: Int = 0      // mAh, capacité actuelle réelle
+    var rawCurrentCapacity: Int = 0   // mAh restants (base du calcul d'autonomie)
     var temperature: Double = 0   // °C
     /// Minutes restantes (décharge) ou avant charge complète. `nil` si inconnu.
     var timeRemainingMinutes: Int?
@@ -62,6 +63,7 @@ enum BatteryReader {
         snap.designCapacity = intValue(props["DesignCapacity"]) ?? 0
         snap.nominalCapacity = intValue(props["NominalChargeCapacity"])
             ?? intValue(props["AppleRawMaxCapacity"]) ?? 0
+        snap.rawCurrentCapacity = intValue(props["AppleRawCurrentCapacity"]) ?? 0
 
         // Température exprimée en centièmes de degré Celsius.
         if let raw = intValue(props["Temperature"]) {

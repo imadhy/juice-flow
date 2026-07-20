@@ -1,33 +1,39 @@
 import AppKit
 import SwiftUI
 
-/// Vue détail d'une application (popover au clic sur une ligne du classement).
-/// Se met à jour en direct tant qu'elle est ouverte.
-struct AppDetailView: View {
+/// Panneau détail permanent du dashboard : l'application sélectionnée dans le
+/// classement, en direct — avec son coût en autonomie.
+struct AppDetailPanel: View {
+    @Environment(BatteryService.self) private var battery
     @Environment(ProcessService.self) private var processes
-    let appID: pid_t
+    let app: AppPower?
 
     var body: some View {
-        if let app = processes.apps.first(where: { $0.id == appID }) {
-            detail(app)
-        } else {
-            VStack(spacing: 8) {
-                Image(systemName: "checkmark.circle")
-                    .font(.title2)
-                    .foregroundStyle(.green)
-                Text("Application terminée ou inactive")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+        Group {
+            if let app {
+                detail(app)
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "cursorarrow.click.2")
+                        .font(.title2)
+                        .foregroundStyle(.tertiary)
+                    Text("Sélectionnez une application")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(24)
         }
+        .padding(16)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .card()
     }
 
     private func detail(_ app: AppPower) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
                 iconView(app)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 38, height: 38)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(app.name)
                         .font(.headline)
@@ -42,7 +48,7 @@ struct AppDetailView: View {
 
             HStack(alignment: .lastTextBaseline, spacing: 6) {
                 Text(valueText(app))
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .foregroundStyle(valueColor(app))
@@ -53,13 +59,15 @@ struct AppDetailView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Sparkline(values: app.history, color: valueColor(app))
-                    .frame(height: 44)
+                    .frame(height: 42)
                 Text("2 dernières minutes")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
 
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+            autonomyCost(app)
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 5) {
                 GridRow {
                     Text("CPU").foregroundStyle(.secondary)
                     Text(String(format: "%.1f %% d'un cœur", app.cpuPercent))
@@ -85,7 +93,9 @@ struct AppDetailView: View {
                 .font(.caption)
             }
 
-            if let running = NSRunningApplication(processIdentifier: appID),
+            Spacer(minLength: 0)
+
+            if let running = NSRunningApplication(processIdentifier: app.id),
                running.activationPolicy == .regular,
                running.processIdentifier != ProcessInfo.processInfo.processIdentifier {
                 Divider()
@@ -93,7 +103,7 @@ struct AppDetailView: View {
                     Button(role: .destructive) {
                         running.terminate()
                     } label: {
-                        Label("Quitter l'application", systemImage: "xmark.circle")
+                        Label("Quitter l'app", systemImage: "xmark.circle")
                     }
                     Text("équivaut à ⌘Q")
                         .font(.caption2)
@@ -101,9 +111,51 @@ struct AppDetailView: View {
                 }
             }
         }
-        .padding(16)
-        .frame(width: 280)
         .animation(.default, value: app)
+    }
+
+    /// Le bloc signature : ce que cette app coûte en temps de batterie.
+    @ViewBuilder
+    private func autonomyCost(_ app: AppPower) -> some View {
+        let snap = battery.snapshot
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Coût d'autonomie")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if let watts = app.watts,
+               let gain = snap.autonomyGainMinutes(freeingWatts: watts),
+               let now = snap.estimatedAutonomyHours {
+                HStack(alignment: .lastTextBaseline, spacing: 6) {
+                    Text(TimeFormat.gain(gain))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .foregroundStyle(.green)
+                    Text("en quittant cette app")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text("autonomie \(TimeFormat.hours(now)) → \(TimeFormat.hours(now + gain / 60))"
+                     + (snap.isExternalConnected ? " · si vous étiez sur batterie" : ""))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            } else if processes.source == .estimation {
+                Text("Activez le mode précision pour le coût en minutes.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            } else {
+                Text("Impact négligeable sur l'autonomie.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.green.opacity(0.07))
+        )
     }
 
     @ViewBuilder

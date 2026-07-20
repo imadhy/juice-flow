@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// Dashboard principal : jauge héros, flux d'énergie, grille bento.
+/// Dashboard principal.
+/// Bandeau héros : jauge (autonomie au centre), flux d'énergie, stats.
+/// Dessous : classement des apps + panneau détail permanent (master-detail).
 struct ContentView: View {
     @Environment(BatteryService.self) private var battery
     @Environment(ProcessService.self) private var processes
@@ -22,93 +24,86 @@ struct ContentView: View {
         }
     }
 
-    private func dashboard(_ snap: BatterySnapshot) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            // Colonne gauche : tout l'état batterie.
-            VStack(spacing: 14) {
-                BatteryGauge(snapshot: snap)
-                    .padding(.top, 22)
-                PowerFlowCard(snapshot: snap)
-                bentoGrid(snap)
-            }
-            .frame(width: 300)
+    /// L'app affichée dans le panneau : la sélection, sinon la plus gourmande.
+    private var selectedApp: AppPower? {
+        processes.apps.first { $0.id == selectedAppID } ?? processes.apps.first
+    }
 
-            // Colonne droite : le classement des apps, pleine hauteur.
-            appsSection
-                .frame(width: 340)
-                .padding(.top, 16)
+    private func dashboard(_ snap: BatterySnapshot) -> some View {
+        VStack(spacing: 14) {
+            headerRow(snap)
+
+            HStack(alignment: .top, spacing: 14) {
+                appsSection
+                    .frame(maxWidth: .infinity)
+                AppDetailPanel(app: selectedApp)
+                    .frame(width: 320)
+            }
+            .frame(maxHeight: .infinity)
         }
-        // Hauteur figée : le contenu vit à l'intérieur, la fenêtre ne
-        // « respire » plus à chaque rafraîchissement.
-        .frame(height: 600, alignment: .top)
+        .frame(width: 880, height: 640, alignment: .top)
         .padding(20)
         .animation(.spring(duration: 0.5), value: snap)
     }
 
-    private func bentoGrid(_ snap: BatterySnapshot) -> some View {
-        LazyVGrid(
-            columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())],
-            spacing: 12
-        ) {
-            MetricCard(
-                icon: "heart.fill", iconColor: .pink,
-                title: "Santé",
-                value: String(format: "%.0f %%", snap.healthPercent),
-                subtitle: "\(snap.nominalCapacity) / \(snap.designCapacity) mAh"
-            )
-            MetricCard(
-                icon: "clock", iconColor: .purple,
-                title: "Temps restant",
-                value: snap.timeRemainingValue,
-                subtitle: snap.timeRemainingCaption
-            )
-            MetricCard(
-                icon: "thermometer.medium", iconColor: .orange,
-                title: "Température",
-                value: String(format: "%.1f °C", snap.temperature),
-                subtitle: snap.temperature < 40 ? "normale" : "élevée"
-            )
-            MetricCard(
-                icon: "arrow.triangle.2.circlepath", iconColor: .blue,
-                title: "Cycles",
-                value: "\(snap.cycleCount)",
-                subtitle: "max théorique ~1000"
-            )
-        }
-    }
+    // MARK: - Bandeau héros
 
-    @ViewBuilder
-    private var sourceBadge: some View {
-        if processes.source == .precision {
-            badgeLabel("précision", color: .teal)
-        } else {
-            badgeLabel("estimation", color: .orange)
-            if case .unavailable = processes.powerMetrics.state {
-                Button("passer en précision") { showPrecisionSetup = true }
-                    .buttonStyle(.link)
-                    .font(.caption2)
-            } else if case .failed = processes.powerMetrics.state {
-                badgeLabel("erreur powermetrics", color: .red)
-                    .help("Le flux powermetrics s'est interrompu — repli automatique sur l'estimation.")
+    private func headerRow(_ snap: BatterySnapshot) -> some View {
+        HStack(spacing: 14) {
+            BatteryGauge(snapshot: snap, size: 150, heroText: gaugeHero(snap))
+                .padding(.top, 10)
+                .frame(width: 170)
+
+            VStack(spacing: 8) {
+                PowerFlowCard(snapshot: snap)
+                if let context = headerContext(snap) {
+                    Text(context)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
             }
+            .frame(maxWidth: .infinity)
+
+            VStack(spacing: 8) {
+                StatChip(icon: "heart.fill", color: .pink,
+                         value: String(format: "%.0f %%", snap.healthPercent),
+                         label: "Santé · \(snap.nominalCapacity) mAh")
+                StatChip(icon: "thermometer.medium", color: .orange,
+                         value: String(format: "%.1f °C", snap.temperature),
+                         label: snap.temperature < 40 ? "Température normale" : "Température élevée")
+                StatChip(icon: "arrow.triangle.2.circlepath", color: .blue,
+                         value: "\(snap.cycleCount)",
+                         label: "Cycles · max ~1000")
+            }
+            .frame(width: 190)
+        }
+        .frame(height: 168)
+    }
+
+    /// Sur batterie, le héros de la jauge est le temps restant — la vraie
+    /// réponse à « où j'en suis ? ». Sinon le pourcentage reprend la main.
+    private func gaugeHero(_ snap: BatterySnapshot) -> String? {
+        guard snap.state == .discharging,
+              let autonomy = snap.estimatedAutonomyHours else { return nil }
+        return TimeFormat.hours(autonomy)
+    }
+
+    private func headerContext(_ snap: BatterySnapshot) -> String? {
+        switch snap.state {
+        case .charging:
+            guard let minutes = snap.timeRemainingMinutes else { return "calcul du temps de charge…" }
+            return "chargée dans \(TimeFormat.hours(Double(minutes) / 60))"
+        case .full, .pluggedNotCharging:
+            guard let autonomy = snap.estimatedAutonomyHours else { return nil }
+            return "≈ \(TimeFormat.hours(autonomy)) d'autonomie si débranché maintenant"
+        case .discharging:
+            guard let minutes = snap.timeRemainingMinutes else { return nil }
+            return "estimation macOS : \(TimeFormat.hours(Double(minutes) / 60))"
         }
     }
 
-    private func detailBinding(for id: pid_t) -> Binding<Bool> {
-        Binding(
-            get: { selectedAppID == id },
-            set: { presented in selectedAppID = presented ? id : nil }
-        )
-    }
-
-    private func badgeLabel(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(color.opacity(0.14)))
-    }
+    // MARK: - Classement
 
     private var appsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -151,18 +146,13 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 12)
             } else {
-                let top = Array(processes.apps.prefix(12))
+                let top = Array(processes.apps.prefix(9))
                 let maxImpact = top.first?.energyImpact ?? 1
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     ForEach(top) { app in
-                        AppEnergyRow(app: app, maxImpact: maxImpact)
+                        AppEnergyRow(app: app, maxImpact: maxImpact,
+                                     isSelected: app.id == selectedApp?.id)
                             .onTapGesture { selectedAppID = app.id }
-                            .popover(
-                                isPresented: detailBinding(for: app.id),
-                                arrowEdge: .trailing
-                            ) {
-                                AppDetailView(appID: app.id)
-                            }
                     }
                 }
             }
@@ -171,5 +161,31 @@ struct ContentView: View {
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .card()
         .animation(.spring(duration: 0.5), value: processes.apps)
+    }
+
+    @ViewBuilder
+    private var sourceBadge: some View {
+        if processes.source == .precision {
+            badgeLabel("précision", color: .teal)
+        } else {
+            badgeLabel("estimation", color: .orange)
+            if case .unavailable = processes.powerMetrics.state {
+                Button("passer en précision") { showPrecisionSetup = true }
+                    .buttonStyle(.link)
+                    .font(.caption2)
+            } else if case .failed = processes.powerMetrics.state {
+                badgeLabel("erreur powermetrics", color: .red)
+                    .help("Le flux powermetrics s'est interrompu — repli automatique sur l'estimation.")
+            }
+        }
+    }
+
+    private func badgeLabel(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.14)))
     }
 }

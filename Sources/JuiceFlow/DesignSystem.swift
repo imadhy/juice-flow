@@ -49,6 +49,56 @@ extension BatterySnapshot {
     }
 }
 
+// MARK: - Modèle d'autonomie
+
+extension BatterySnapshot {
+    /// Énergie restante estimée : mAh restants × tension instantanée.
+    var remainingEnergyWh: Double {
+        Double(rawCurrentCapacity) / 1000 * voltage
+    }
+
+    /// Drain de référence en watts : le drain batterie réel en décharge,
+    /// sinon la consommation système (hypothèse « si débranché maintenant »).
+    var referenceDrainWatts: Double? {
+        if state == .discharging, watts < -0.3 { return -watts }
+        if let systemWatts, systemWatts > 0.5 { return systemWatts }
+        return nil
+    }
+
+    /// Autonomie estimée au rythme de consommation actuel.
+    var estimatedAutonomyHours: Double? {
+        guard let drain = referenceDrainWatts, remainingEnergyWh > 0 else { return nil }
+        return remainingEnergyWh / drain
+    }
+
+    /// Minutes d'autonomie gagnées si on libère `freeingWatts` de consommation
+    /// (ex : en quittant une app). Nil si non calculable.
+    func autonomyGainMinutes(freeingWatts: Double) -> Double? {
+        guard freeingWatts > 0.05,
+              let drain = referenceDrainWatts,
+              drain - freeingWatts > 0.3,
+              remainingEnergyWh > 0 else { return nil }
+        let now = remainingEnergyWh / drain
+        let without = remainingEnergyWh / (drain - freeingWatts)
+        return (without - now) * 60
+    }
+}
+
+enum TimeFormat {
+    static func hours(_ hours: Double) -> String {
+        guard hours.isFinite, hours > 0 else { return "—" }
+        guard hours < 24 else { return "> 24 h" }
+        let minutes = Int(hours * 60)
+        return "\(minutes / 60) h \(String(format: "%02d", minutes % 60))"
+    }
+
+    static func gain(_ minutes: Double) -> String {
+        let rounded = Int(minutes.rounded())
+        guard rounded >= 60 else { return "+\(max(rounded, 1)) min" }
+        return "+\(rounded / 60) h \(String(format: "%02d", rounded % 60))"
+    }
+}
+
 // MARK: - Style de carte partagé
 
 struct CardBackground: ViewModifier {
