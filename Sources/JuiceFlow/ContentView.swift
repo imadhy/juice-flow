@@ -30,14 +30,22 @@ struct ContentView: View {
         // Pilote la cadence de mesure et la présence dans le Dock :
         // fenêtre fermée → mode économie + app « accessoire » (barre des
         // menus uniquement, plus d'icône Dock ni de point blanc).
+        //
+        // La logique vit dans `syncViewers` (constat de visibilité réelle,
+        // idempotent) : onAppear/onDisappear et les notifications NSWindow
+        // ne sont que des accélérateurs — selon la version de macOS,
+        // certains ne tirent jamais (SwiftUI garde la vue vivante après
+        // fermeture). Le tick de sondage rattrape toujours.
         .onAppear {
-            processes.viewerAppeared()
-            NSApp.setActivationPolicy(.regular)
+            processes.syncViewers()
             if !hasOnboarded { showOnboarding = true }
         }
-        .onDisappear {
-            processes.viewerDisappeared()
-            NSApp.setActivationPolicy(.accessory)
+        .onDisappear { processes.syncViewers() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { _ in
+            processes.syncViewers()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            processes.syncViewers()
         }
         .sheet(isPresented: $showOnboarding) {
             OnboardingView {

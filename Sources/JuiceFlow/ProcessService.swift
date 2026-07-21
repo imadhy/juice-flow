@@ -72,34 +72,67 @@ final class ProcessService {
     @ObservationIgnored private var smoothedImpacts: [pid_t: Double] = [:]
     @ObservationIgnored private var histories: [pid_t: [Double]] = [:]
 
-    @ObservationIgnored private var viewerCount = 0
+    @ObservationIgnored private var hasViewers = false
+    @ObservationIgnored private var windowVisible = false
 
     init() {
         previous = ProcessSampler.snapshot()
+        // Bascule en précision dès le premier échantillon powermetrics, sans
+        // attendre le tick suivant : au lancement, les watts remplacent le
+        // spinner directement — jamais le score pour 3 s d'abord.
+        powerMetrics.onSample = { [weak self] in
+            guard let self, source != .precision else { return }
+            refresh()
+        }
         restartPolling(every: .seconds(3))
     }
 
     // MARK: - Cadence pilotée par la visibilité
 
-    /// Appelé par chaque vue qui consomme le classement (dashboard, popover).
-    /// Personne ne regarde → powermetrics en pause et échantillonnage ralenti
-    /// à 30 s : l'historique des badges reste vivant pour presque rien.
-    func viewerAppeared() {
-        viewerCount += 1
-        guard viewerCount == 1 else { return }
-        restartPolling(every: .seconds(3))
-        powerMetrics.setCadence(seconds: 3)
-        Task { await powerMetrics.resumeIfAuthorized() }
-        refresh()
+    /// Recale l'état « quelqu'un regarde » sur la visibilité RÉELLE des
+    /// fenêtres. Compter les onAppear/onDisappear ne marche pas : selon la
+    /// version de macOS, SwiftUI garde les vues vivantes (fenêtre fermée ou
+    /// app masquée sans onDisappear) et le compteur restait bloqué — cadence
+    /// rapide à vie. Ici, constat idempotent : appelé par les callbacks des
+    /// vues quand ils arrivent (réaction immédiate), et par chaque tick de
+    /// sondage en filet de sécurité (auto-réparation en ≤ 3 s en cadence
+    /// rapide, ≤ 30 s en lente).
+    func syncViewers() {
+        applyViewerState()
+        // Les fenêtres changent d'état au tour de boucle qui SUIT
+        // l'événement (onAppear précède l'affichage réel) : second constat.
+        DispatchQueue.main.async { [weak self] in self?.applyViewerState() }
     }
 
-    func viewerDisappeared() {
-        viewerCount = max(0, viewerCount - 1)
-        guard viewerCount == 0 else { return }
-        // Cadence lente mais jamais d'arrêt : l'historique par app
-        // continue de s'écrire pour quelques milliwatts.
-        powerMetrics.setCadence(seconds: 30)
-        restartPolling(every: .seconds(30))
+    private func applyViewerState() {
+        let mainVisible = NSApp.windows.contains {
+            $0.isVisible && $0.identifier?.rawValue.hasPrefix("main") == true
+        }
+        let popoverVisible = NSApp.windows.contains {
+            $0.isVisible && String(describing: type(of: $0)).hasPrefix("MenuBarExtraWindow")
+        }
+
+        if mainVisible != windowVisible {
+            windowVisible = mainVisible
+            // Présence dans le Dock alignée sur la fenêtre : app normale
+            // quand elle est visible, accessoire (barre des menus) sinon.
+            NSApp.setActivationPolicy(mainVisible ? .regular : .accessory)
+        }
+
+        let watching = mainVisible || popoverVisible
+        guard watching != hasViewers else { return }
+        hasViewers = watching
+        if watching {
+            restartPolling(every: .seconds(3))
+            powerMetrics.setCadence(seconds: 3)
+            Task { await powerMetrics.resumeIfAuthorized() }
+            refresh()
+        } else {
+            // Cadence lente mais jamais d'arrêt : l'historique par app
+            // continue de s'écrire pour quelques milliwatts.
+            powerMetrics.setCadence(seconds: 30)
+            restartPolling(every: .seconds(30))
+        }
     }
 
     private func restartPolling(every interval: Duration) {
@@ -114,6 +147,8 @@ final class ProcessService {
     }
 
     private func refresh() {
+        applyViewerState()
+
         if powerMetrics.isFresh {
             publish(Self.fromPowerMetrics(powerMetrics.tasks, iconCache: &iconCache),
                     processCount: powerMetrics.tasks.count,
@@ -123,6 +158,12 @@ final class ProcessService {
             // moment du repli (moyenne sur la période écoulée).
             return
         }
+
+        // Flux précision en cours de (re)démarrage : on garde l'affichage tel
+        // quel quelques secondes plutôt que de flasher le score estimation
+        // puis de rebasculer en watts. Si le flux reste muet, `isWarmingUp`
+        // expire de lui-même et le repli estimation reprend au tick suivant.
+        if powerMetrics.isWarmingUp, source == .precision || apps.isEmpty { return }
 
         let current = ProcessSampler.snapshot()
         if let previous {

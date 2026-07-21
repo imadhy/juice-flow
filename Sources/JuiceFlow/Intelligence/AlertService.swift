@@ -54,6 +54,11 @@ final class AlertService {
     init(battery: BatteryService, processes: ProcessService) {
         self.battery = battery
         self.processes = processes
+
+        // UNUserNotificationCenter exige un vrai bundle .app et fait aborter
+        // le processus sinon : lancé en binaire nu (`swift run`), le garde
+        // du corps reste au vestiaire plutôt que de crasher l'app.
+        guard Bundle.main.bundleIdentifier != nil else { return }
         configureNotifications()
 
         pollTask = Task { [weak self] in
