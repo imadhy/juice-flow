@@ -1,9 +1,11 @@
 import ServiceManagement
 import SwiftUI
 
-/// Réglages (⌘,) : lancement à la connexion, alertes, mode précision.
+/// Réglages (⌘,) : lancement à la connexion, alertes, mode précision,
+/// mises à jour.
 struct SettingsView: View {
     @Environment(ProcessService.self) private var processes
+    @Environment(UpdateService.self) private var updates
 
     @AppStorage("alertsEnabled") private var alertsEnabled = true
     @AppStorage("alertSensitivity") private var sensitivityRaw = AlertSensitivity.normal.rawValue
@@ -52,10 +54,58 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            Section {
+                LabeledContent("Version \(UpdateService.currentVersion)") {
+                    updateStatus
+                }
+            } header: {
+                Text("Mises à jour")
+            } footer: {
+                Text(UpdateService.isBundled
+                     ? "Vérification quotidienne auprès des releases GitHub. À l'installation, l'ancienne version part à la corbeille et l'app se relance."
+                     : "Mises à jour indisponibles hors bundle .app (lancement dev).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 440)
         .fixedSize()
+    }
+
+    @ViewBuilder
+    private var updateStatus: some View {
+        switch updates.phase {
+        case .idle:
+            Button("Rechercher…") { Task { await updates.check() } }
+                .disabled(!UpdateService.isBundled)
+        case .checking:
+            Label("Vérification…", systemImage: "hourglass")
+                .foregroundStyle(.secondary)
+        case .upToDate:
+            HStack(spacing: 10) {
+                Label("À jour", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Button("Rechercher…") { Task { await updates.check() } }
+            }
+        case .available(let release):
+            Button("Installer la \(release.version)…") { Task { await updates.install() } }
+                .buttonStyle(.borderedProminent)
+                .help(release.notes.isEmpty ? "Notes de version sur GitHub." : release.notes)
+        case .installing:
+            Label("Installation…", systemImage: "hourglass")
+                .foregroundStyle(.secondary)
+        case .failed(let message, let pageURL):
+            HStack(spacing: 10) {
+                Label("Échec", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .help(message)
+                if let pageURL {
+                    Button("Ouvrir la page des releases") { NSWorkspace.shared.open(pageURL) }
+                }
+            }
+        }
     }
 
     @ViewBuilder

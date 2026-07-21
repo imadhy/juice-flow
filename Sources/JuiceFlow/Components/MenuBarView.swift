@@ -28,6 +28,7 @@ struct MenuBarLabel: View {
 struct MenuBarView: View {
     @Environment(BatteryService.self) private var battery
     @Environment(ProcessService.self) private var processes
+    @Environment(UpdateService.self) private var updates
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
@@ -65,6 +66,25 @@ struct MenuBarView: View {
                 }
             }
 
+            // Discret tant qu'il n'y a rien : une ligne seulement quand une
+            // mise à jour attend, ou pendant son installation.
+            if case .available(let release) = updates.phase {
+                Button {
+                    Task { await updates.install() }
+                } label: {
+                    Label("Mettre à jour vers \(release.version)", systemImage: "sparkles")
+                        .font(.caption)
+                }
+                .buttonStyle(.link)
+            } else if case .installing = updates.phase {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("Mise à jour en cours…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Divider()
 
             HStack {
@@ -94,7 +114,10 @@ struct MenuBarView: View {
         // Le popover compte comme un spectateur : cadence rapide tant
         // qu'il est ouvert, mode économie sinon. Simples accélérateurs —
         // la vérité vient de la visibilité réelle (voir syncViewers).
-        .onAppear { processes.syncViewers() }
+        .onAppear {
+            processes.syncViewers()
+            updates.checkIfStale()
+        }
         .onDisappear { processes.syncViewers() }
     }
 

@@ -34,6 +34,7 @@ Activity Monitor tells you an app has an *energy impact of 47*. JuiceFlow tells 
 - **History** — battery curve over 24 h, energy consumed per app per day, day-over-day comparison. Plain SQLite, 30/90-day retention.
 - **Menu bar companion** — your live drain in watts (the number macOS never shows you), top 5 hungry apps, one click from anywhere.
 - **It practices what it preaches** — JuiceFlow measures itself in its own ranking: ~200 mW with the dashboard open, virtually invisible when closed (the measurement stream slows to one sample / 30 s).
+- **Built-in updates** — a daily, quiet check against GitHub Releases; one click downloads the new version, swaps the bundle (old one goes to the Trash) and relaunches. No Sparkle, no daemon — ~200 lines you can audit in `UpdateService.swift`.
 
 ## Install
 
@@ -55,6 +56,8 @@ Grab the latest release from [Releases](https://github.com/imadhy/juice-flow/rel
 
 - **System Settings → Privacy & Security → “Open Anyway”**, or
 - clear the quarantine flag yourself: `xattr -cr /Applications/JuiceFlow.app`
+
+That friction is a one-time thing: from there, the app updates itself (Settings → “Mises à jour”, or the sparkles row in the menu bar popover). Self-updates don't re-trigger Gatekeeper — files downloaded by the app itself carry no quarantine flag.
 
 ## Precision mode & security
 
@@ -89,9 +92,11 @@ Built with SwiftUI + Swift 6 strict concurrency, and compiled with **Swift Packa
 The binary doubles as a diagnostic tool:
 
 ```sh
-.build/debug/JuiceFlow --dump      # battery + SMC + autonomy readings
-.build/debug/JuiceFlow --top [s]   # estimation-mode ranking (cross-check with `top`)
-.build/debug/JuiceFlow --pm [s]    # powermetrics parsing + JuiceFlow's own consumption
+.build/debug/JuiceFlow --dump            # battery + SMC + autonomy readings
+.build/debug/JuiceFlow --top [s]         # estimation-mode ranking (cross-check with `top`)
+.build/debug/JuiceFlow --pm [s]          # powermetrics parsing + JuiceFlow's own consumption
+JuiceFlow.app/Contents/MacOS/JuiceFlow --check-update    # latest release vs installed
+JuiceFlow.app/Contents/MacOS/JuiceFlow --install-update  # OTA update from the terminal
 ```
 
 ## Roadmap

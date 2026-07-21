@@ -11,9 +11,45 @@ enum Main {
             dumpTopApps()
         } else if CommandLine.arguments.contains("--pm") {
             dumpPowerMetrics()
+        } else if CommandLine.arguments.contains("--check-update") {
+            runUpdateCLI(install: false)
+        } else if CommandLine.arguments.contains("--install-update") {
+            runUpdateCLI(install: true)
         } else {
             JuiceFlowApp.main()
         }
+    }
+
+    /// Mode diagnostic : `JuiceFlow --check-update` interroge la dernière
+    /// release, `--install-update` télécharge et remplace le bundle
+    /// (même mécanique que l'app, sans relance automatique).
+    private static func runUpdateCLI(install: Bool) {
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached {
+            defer { semaphore.signal() }
+            let current = UpdateService.currentVersion
+            print("Version installée : \(current)")
+            do {
+                let release = try await UpdateService.fetchLatest(from: UpdateService.feedURL)
+                guard UpdateService.isNewer(release.version, than: current) else {
+                    print("À jour — dernière release : \(release.version).")
+                    return
+                }
+                print("Nouvelle version : \(release.version) (\(release.zipURL?.absoluteString ?? "pas d'asset .zip"))")
+                guard install else { return }
+                guard UpdateService.isBundled else {
+                    print("Hors bundle .app : installation impossible (utilisez scripts/bundle.sh).")
+                    exit(1)
+                }
+                print("Installation dans \(Bundle.main.bundleURL.path)…")
+                try await UpdateService.downloadAndInstall(release, replacing: Bundle.main.bundleURL)
+                print("✅ \(release.version) installée — l'ancienne version est dans la corbeille.")
+            } catch {
+                print("Échec : \(error.localizedDescription)")
+                exit(1)
+            }
+        }
+        semaphore.wait()
     }
 
     /// Mode diagnostic : `JuiceFlow --top` échantillonne 3 s et imprime le
@@ -115,6 +151,7 @@ struct JuiceFlowApp: App {
     @State private var processes: ProcessService
     @State private var history: HistoryService
     @State private var alerts: AlertService
+    @State private var updates: UpdateService
 
     init() {
         let battery = BatteryService()
@@ -123,6 +160,7 @@ struct JuiceFlowApp: App {
         _processes = State(initialValue: processes)
         _history = State(initialValue: HistoryService(battery: battery, processes: processes))
         _alerts = State(initialValue: AlertService(battery: battery, processes: processes))
+        _updates = State(initialValue: UpdateService())
     }
 
     var body: some Scene {
@@ -131,6 +169,7 @@ struct JuiceFlowApp: App {
                 .environment(battery)
                 .environment(processes)
                 .environment(history)
+                .environment(updates)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
@@ -139,6 +178,7 @@ struct JuiceFlowApp: App {
             MenuBarView()
                 .environment(battery)
                 .environment(processes)
+                .environment(updates)
         } label: {
             MenuBarLabel()
                 .environment(battery)
@@ -148,6 +188,7 @@ struct JuiceFlowApp: App {
         Settings {
             SettingsView()
                 .environment(processes)
+                .environment(updates)
         }
     }
 }

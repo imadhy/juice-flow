@@ -8,6 +8,7 @@ struct ContentView: View {
 
     @Environment(BatteryService.self) private var battery
     @Environment(ProcessService.self) private var processes
+    @Environment(UpdateService.self) private var updates
     @State private var showPrecisionSetup = false
     @State private var selectedAppID: pid_t?
     @State private var tab: Tab = .live
@@ -38,6 +39,7 @@ struct ContentView: View {
         // fermeture). Le tick de sondage rattrape toujours.
         .onAppear {
             processes.syncViewers()
+            updates.checkIfStale()
             if !hasOnboarded { showOnboarding = true }
         }
         .onDisappear { processes.syncViewers() }
@@ -60,14 +62,48 @@ struct ContentView: View {
         processes.apps.first { $0.id == selectedAppID } ?? processes.apps.first
     }
 
+    /// Invisible tant qu'il n'y a rien : un badge en haut à droite quand une
+    /// mise à jour attend, un sablier discret pendant son installation.
+    @ViewBuilder
+    private var updateBadge: some View {
+        if case .available(let release) = updates.phase {
+            Button {
+                Task { await updates.install() }
+            } label: {
+                Label("Mise à jour \(release.version)", systemImage: "sparkles")
+                    .font(.caption.weight(.medium))
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(.teal)
+            .help(release.notes.isEmpty
+                  ? "Télécharge, installe et relance JuiceFlow."
+                  : release.notes)
+        } else if case .installing = updates.phase {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Mise à jour…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private func dashboard(_ snap: BatterySnapshot) -> some View {
         VStack(spacing: 12) {
-            Picker("", selection: $tab) {
-                Text("Temps réel").tag(Tab.live)
-                Text("Historique").tag(Tab.history)
+            ZStack {
+                Picker("", selection: $tab) {
+                    Text("Temps réel").tag(Tab.live)
+                    Text("Historique").tag(Tab.history)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 240)
+
+                HStack {
+                    Spacer()
+                    updateBadge
+                }
             }
-            .pickerStyle(.segmented)
-            .frame(width: 240)
 
             headerRow(snap)
 

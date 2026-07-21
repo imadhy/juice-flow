@@ -18,3 +18,10 @@ ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "JuiceFlow $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG" > /dev/null
 rm -rf "$STAGE"
 echo "✅ $DMG"
+
+# Le .zip alimente la mise à jour OTA intégrée (UpdateService) : à joindre
+# à la release GitHub aux côtés du .dmg. ditto préserve la signature.
+ZIP="build/JuiceFlow-$VERSION.zip"
+rm -f "$ZIP"
+ditto -c -k --keepParent build/JuiceFlow.app "$ZIP"
+echo "✅ $ZIP"
